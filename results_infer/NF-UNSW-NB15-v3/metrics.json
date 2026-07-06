@@ -1,16 +1,16 @@
 {
-  "auc_roc": 0.9549695376851197,
-  "pr_auc": 0.5800637401168962,
-  "precision": 0.3888579551530482,
-  "recall": 0.9573063899706782,
-  "f1": 0.5530620486382445,
-  "fpr": 0.14960152295948073,
-  "tpr": 0.9573063899706782,
-  "threshold": 0.008910495787858963,
-  "tp": 105454,
-  "fp": 165735,
-  "tn": 942108,
-  "fn": 4703,
+  "auc_roc": 0.9306211424602315,
+  "pr_auc": 0.7702181758872608,
+  "precision": 0.9717146607501713,
+  "recall": 0.7593888722459762,
+  "f1": 0.8525305232261878,
+  "fpr": 0.0021979648740841438,
+  "tpr": 0.7593888722459762,
+  "threshold": 0.09803825616836548,
+  "tp": 83652,
+  "fp": 2435,
+  "tn": 1105408,
+  "fn": 26505,
   "n_eval_edges": 1218000,
   "dataset": "NF-UNSW-NB15-v3",
   "edge_columns": [
@@ -22,10 +22,14 @@
     "TOTAL_PKTS",
     "TOTAL_BYTES"
   ],
-  "log1p_columns": [],
-  "train_time_sec": 182.8390440940857,
-  "infer_time_sec": 2.408712148666382,
-  "best_epoch": 75,
+  "log1p_columns": [
+    "FLOW_DURATION_MILLISECONDS",
+    "TOTAL_PKTS",
+    "TOTAL_BYTES"
+  ],
+  "train_time_sec": 182.37227582931519,
+  "infer_time_sec": 2.218008518218994,
+  "best_epoch": 66,
   "epochs_trained": 85,
-  "best_val_mse": 0.019554991039426522
+  "best_val_mse": 0.019983714157706094
 }

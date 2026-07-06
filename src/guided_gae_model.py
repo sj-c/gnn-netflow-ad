@@ -85,40 +85,30 @@ class DecoderWithGlobalEdge(nn.Module):
         super(DecoderWithGlobalEdge, self).__init__()
         self.hidden_channels = hidden_channels
 
-        self.fc_edge = nn.Linear(edge_attr_dim, hidden_channels)
         self.fc_global = nn.Linear(global_emb_dim, hidden_channels)
-        # Adjusted the input dimension based on concatenated features
-        self.fc = nn.Linear(3 * hidden_channels, 1)
+        # Reconstructs edge attributes from endpoint embeddings + global context;
+        # the target edge's own attributes must never be an input here, or the
+        # decoder can copy them through and reconstruction error collapses to zero.
         self.fc1 = nn.Linear(3 * hidden_channels, 3 * hidden_channels)
+        self.fc = nn.Linear(3 * hidden_channels, edge_attr_dim)
 
-    def forward(self, z, edge_index, edge_attr, global_edge_emb, edge_batch):
+    def forward(self, z, edge_index, global_edge_emb, edge_batch):
         row, col = edge_index
         z_row = z[row]  # Shape: [num_edges, hidden_channels]
         z_col = z[col]  # Shape: [num_edges, hidden_channels]
-
-        # Element-wise multiplication for node interactions
-        node_interaction = z_row * z_col  # Shape: [num_edges, hidden_channels]
-
-        # Transform local edge attributes
-        edge_attr_transformed = F.relu(self.fc_edge(edge_attr))  # Shape: [num_edges, hidden_channels]
 
         # Get the corresponding global edge embedding for each edge
         global_edge_emb_expanded = global_edge_emb[edge_batch]  # Shape: [num_edges, global_emb_dim]
         global_edge_emb_transformed = F.relu(
             self.fc_global(global_edge_emb_expanded))  # Shape: [num_edges, hidden_channels]
 
-        # Concatenate features including node interaction terms
-        concat = torch.cat([node_interaction, edge_attr_transformed, global_edge_emb_transformed],
+        # src/dst embeddings kept separate: edge features are directional (IN_* vs OUT_*)
+        concat = torch.cat([z_row, z_col, global_edge_emb_transformed],
                            dim=1)  # Shape: [num_edges, 3 * hidden_channels]
 
-        # Predict edge existence with sigmoid activation
-        out = torch.sigmoid(self.fc(
-            F.elu(
-                self.fc1(concat)
-            )
-
-        )).squeeze()  # Shape: [num_edges]
-        return out  # Edge probabilities (num_edges,)
+        # No output activation: targets are standardized (can be negative/unbounded)
+        out = self.fc(F.elu(self.fc1(concat)))  # Shape: [num_edges, edge_attr_dim]
+        return out  # Reconstructed edge attributes
 
 
 class GAEWithGlobalEdge(GAE):
@@ -134,10 +124,10 @@ class GAEWithGlobalEdge(GAE):
         # Create edge_batch from node batch
         edge_batch = batch[edge_index[0]]  # Assuming edge_index[0] corresponds to source nodes
 
-        # Compute global edge embeddings
+        # edge_attr feeds only the graph-level context embedding, not the decoder
         global_edge_emb = self.global_edge_embedding(edge_attr, edge_batch)  # Shape: [batch_size, global_emb_dim]
 
-        return self.decoder(z, edge_index, edge_attr, global_edge_emb, edge_batch)
+        return self.decoder(z, edge_index, global_edge_emb, edge_batch)
 
 
 

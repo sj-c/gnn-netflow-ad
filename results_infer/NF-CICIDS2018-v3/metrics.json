@@ -1,16 +1,16 @@
 {
-  "auc_roc": 0.44262326933104856,
-  "pr_auc": 0.11798734658689071,
-  "precision": 0.0,
-  "recall": 0.0,
-  "f1": 0.0,
-  "fpr": 0.0,
-  "tpr": 0.0,
-  "threshold": Infinity,
-  "tp": 0,
-  "fp": 0,
-  "tn": 15472139,
-  "fn": 2093861,
+  "auc_roc": 0.9509071111853944,
+  "pr_auc": 0.7929445687424905,
+  "precision": 0.6747373944130634,
+  "recall": 0.8696518059221696,
+  "f1": 0.7598947123525196,
+  "fpr": 0.05673384914652072,
+  "tpr": 0.8696518059221696,
+  "threshold": 1.4487617015838623,
+  "tp": 1820930,
+  "fp": 877794,
+  "tn": 14594345,
+  "fn": 272931,
   "n_eval_edges": 17566000,
   "dataset": "NF-CICIDS2018-v3",
   "edge_columns": [
@@ -18,6 +18,10 @@
     "OUT_BYTES",
     "FLOW_DURATION_MILLISECONDS"
   ],
-  "train_time_sec": 205.67231464385986,
-  "infer_time_sec": 22.322413206100464
+  "log1p_columns": [],
+  "train_time_sec": 177.98233079910278,
+  "infer_time_sec": 29.933959007263184,
+  "best_epoch": 85,
+  "epochs_trained": 85,
+  "best_val_mse": 0.5615475520833333
 }

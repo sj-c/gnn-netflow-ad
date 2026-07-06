@@ -64,7 +64,8 @@ def compute_node_embeddings(edge_index, num_nodes, embedding_dim, node_names, pr
 
     # Compute inverse degree matrix D_inv
     degrees = np.array(A.sum(axis=1)).flatten()
-    D_inv = np.where(degrees != 0, 1.0 / degrees, 0.0)
+    D_inv = np.zeros_like(degrees)
+    np.divide(1.0, degrees, out=D_inv, where=degrees != 0)
     D_inv_mat = sparse.diags(D_inv)
 
     # Compute normalized adjacency matrix: D_inv_A = D_inv * A
@@ -184,10 +185,28 @@ def create_random_tensor(n, m, min_value, max_value):
     return scaled_tensor
 
 
+# Port-range boundaries (IANA)
+WELL_KNOWN_PORT_MAX = 1023
+REGISTERED_PORT_MAX = 49151
+
+# Edge columns encoded as one-hot blocks instead of scaled numerics.
+# Values are numeric protocol/port codes: z-scoring them would invent
+# ordering/distance that doesn't exist.
+CATEGORICAL_EDGE_COLUMNS = ("PROTOCOL", "L4_SRC_PORT", "L4_DST_PORT")
+
+# Derived numeric columns computed from raw NetFlow fields. The source
+# fields only need to exist in the dataframe, not in edge_columns.
+DERIVED_EDGE_COLUMNS = {
+    "TOTAL_PKTS": lambda df: df["IN_PKTS"].to_numpy(dtype=np.float64) + df["OUT_PKTS"].to_numpy(dtype=np.float64),
+    "TOTAL_BYTES": lambda df: df["IN_BYTES"].to_numpy(dtype=np.float64) + df["OUT_BYTES"].to_numpy(dtype=np.float64),
+}
+
+
 class NetflowPreprocessor:
 
     def __init__(self, df: pd.DataFrame, edge_columns: [str], node_dim: int, normalize=True, src_ip='IPV4_SRC_ADDR',
-                 dst_ip='IPV4_DST_ADDR', label='Label'):
+                 dst_ip='IPV4_DST_ADDR', label='Label', log1p_columns=None, top_k_ports=16,
+                 protocol_vocab=None, dst_port_vocab=None):
         self.edge_columns = edge_columns
         self.node_dim = node_dim
         self.edge_scaler = None
@@ -195,14 +214,108 @@ class NetflowPreprocessor:
         self.src_ip = src_ip
         self.dst_ip = dst_ip
         self.label = label
+        self.top_k_ports = top_k_ports
+        # order-preserving split: numerics go through the scaler, categoricals become one-hot blocks
+        self.numeric_columns = [c for c in edge_columns if c not in CATEGORICAL_EDGE_COLUMNS]
+        self.categorical_columns = [c for c in edge_columns if c in CATEGORICAL_EDGE_COLUMNS]
+        # optional: columns to log1p-compress before scaling, so heavy-tailed
+        # outliers don't dominate the scaler's mean/scale; empty list = raw features
+        self.log1p_columns = [c for c in (log1p_columns or []) if c in self.numeric_columns]
         np.random.seed(42)
         self.projection_matrix = np.random.uniform(-1, 1, size=(4, self.node_dim)).astype(np.float32)
         # Assign the dataframe directly
         self.df = df.dropna()
 
-        if self.scale:
-            # initialize edge scaler
-            self.edge_scaler = StandardScaler().fit(self.df[self.edge_columns].values)
+        # Categorical vocabularies come from the (benign) training data; pass them in
+        # explicitly (e.g. from a checkpoint) to reproduce a fitted encoding at inference.
+        self.protocol_vocab = None
+        self.dst_port_vocab = None
+        if "PROTOCOL" in self.categorical_columns:
+            self.protocol_vocab = (list(protocol_vocab) if protocol_vocab is not None
+                                   else sorted(self.df["PROTOCOL"].unique().tolist()))
+        if "L4_DST_PORT" in self.categorical_columns:
+            if dst_port_vocab is not None:
+                self.dst_port_vocab = list(dst_port_vocab)
+            else:
+                # top-K most frequent non-ephemeral destination ports; ephemeral ports
+                # get their own bucket, everything else falls into "other"
+                ports = self.df["L4_DST_PORT"]
+                counts = ports[ports <= REGISTERED_PORT_MAX].value_counts()
+                self.dst_port_vocab = counts.head(self.top_k_ports).index.tolist()
+
+        if self.scale and self.numeric_columns:
+            self.edge_scaler = StandardScaler().fit(self._numeric_features(self.df))
+
+    @property
+    def feature_dim(self):
+        return len(self.feature_names)
+
+    @property
+    def feature_names(self):
+        """Final edge-feature layout: scaled numerics first, then one-hot blocks."""
+        names = list(self.numeric_columns)
+        for col in self.categorical_columns:
+            if col == "PROTOCOL":
+                names += [f"PROTOCOL={p}" for p in self.protocol_vocab] + ["PROTOCOL=other"]
+            elif col == "L4_SRC_PORT":
+                names += ["SRC_PORT=wellknown", "SRC_PORT=registered", "SRC_PORT=ephemeral"]
+            elif col == "L4_DST_PORT":
+                names += [f"DST_PORT={p}" for p in self.dst_port_vocab] + ["DST_PORT=other", "DST_PORT=ephemeral"]
+        return names
+
+    def _column_values(self, df, col):
+        if col in DERIVED_EDGE_COLUMNS:
+            return DERIVED_EDGE_COLUMNS[col](df)
+        return df[col].to_numpy(dtype=np.float64)
+
+    def _numeric_features(self, df):
+        """Numeric edge features, with log1p applied to any configured columns, before scaling."""
+        features = np.column_stack([self._column_values(df, c) for c in self.numeric_columns])
+        if self.log1p_columns:
+            idx = [self.numeric_columns.index(c) for c in self.log1p_columns]
+            features[:, idx] = np.log1p(np.clip(features[:, idx], 0, None))
+        return features
+
+    @staticmethod
+    def _one_hot(indices, num_classes):
+        block = np.zeros((len(indices), num_classes), dtype=np.float64)
+        block[np.arange(len(indices)), indices] = 1.0
+        return block
+
+    def _categorical_features(self, df):
+        """One-hot blocks for categorical columns; 0/1 values, deliberately unscaled."""
+        blocks = []
+        for col in self.categorical_columns:
+            if col == "PROTOCOL":
+                mapping = {p: i for i, p in enumerate(self.protocol_vocab)}
+                idx = df["PROTOCOL"].map(mapping).fillna(len(mapping)).to_numpy(dtype=np.int64)
+                blocks.append(self._one_hot(idx, len(mapping) + 1))
+            elif col == "L4_SRC_PORT":
+                # source ports are usually ephemeral noise: coarse range buckets only
+                ports = df["L4_SRC_PORT"].to_numpy(dtype=np.int64)
+                idx = np.where(ports <= WELL_KNOWN_PORT_MAX, 0,
+                               np.where(ports <= REGISTERED_PORT_MAX, 1, 2))
+                blocks.append(self._one_hot(idx, 3))
+            elif col == "L4_DST_PORT":
+                mapping = {p: i for i, p in enumerate(self.dst_port_vocab)}
+                other, ephemeral = len(mapping), len(mapping) + 1
+                ports = df["L4_DST_PORT"]
+                idx = ports.map(mapping).fillna(other).to_numpy(dtype=np.int64)
+                idx[ports.to_numpy(dtype=np.int64) > REGISTERED_PORT_MAX] = ephemeral
+                blocks.append(self._one_hot(idx, ephemeral + 1))
+        return np.concatenate(blocks, axis=1)
+
+    def transform_edge_features(self, df):
+        """Final edge-feature matrix: [scaled numerics | one-hot categoricals]."""
+        parts = []
+        if self.numeric_columns:
+            numeric = self._numeric_features(df)
+            if self.scale:
+                numeric = np.asarray(self.edge_scaler.transform(numeric))
+            parts.append(numeric)
+        if self.categorical_columns:
+            parts.append(self._categorical_features(df))
+        return np.concatenate(parts, axis=1)
 
     def _generate_windows(self, df, window_size, step_size):
         """ Generate row-based windows instead of time-based ones. """
@@ -240,12 +353,9 @@ class NetflowPreprocessor:
         if edge_index.ndim != 2 or edge_index.shape[0] != 2:
             raise ValueError(f"edge_index has incorrect shape: {edge_index.shape}")
 
-        # Get and scale edge features
-        edge_features = df[self.edge_columns].to_numpy()
+        # Get edge features (scaled numerics + one-hot categoricals)
+        edge_features = self.transform_edge_features(df)
         edge_labels = np.zeros(len(df))  # Dummy feature array
-
-        if self.scale:
-            edge_features = np.asarray(self.edge_scaler.transform(edge_features))
 
         # Create edge attributes tensor
         edge_index = torch.tensor(edge_index, dtype=torch.long)
@@ -303,12 +413,8 @@ class NetflowPreprocessor:
                 if edge_index.ndim != 2 or edge_index.shape[0] != 2:
                     raise ValueError(f"edge_index has incorrect shape: {edge_index.shape}")
 
-                edge_features = window_df[self.edge_columns].to_numpy()
+                edge_features = self.transform_edge_features(window_df)
                 edge_labels = window_df[self.label].astype(np.float32)
-
-                # Scale edge features if needed
-                if self.scale:
-                    edge_features = np.asarray(self.edge_scaler.transform(edge_features))
 
                 # Convert to PyTorch tensors
                 edge_index = torch.tensor(edge_index, dtype=torch.long)

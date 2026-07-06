@@ -77,11 +77,13 @@ class GraphInferenceStage(SinglePortStage):
         with torch.no_grad():
             data.batch = torch.zeros(data.num_nodes, dtype=torch.long).to(data.x.device)
             data = data.to(self._device)
-            z = self._model.encode(data.x, data.edge_index, data.edge_attr[:, :-1])
-            pos_edge_index = data.edge_index
-            pos_pred = self._model.decode(z, pos_edge_index, data.edge_attr[:, :-1], data.batch)
+            target = data.edge_attr[:, :-1]
+            z = self._model.encode(data.x, data.edge_index, target)
+            pred = self._model.decode(z, data.edge_index, target, data.batch)
+            # Anomaly score: per-edge reconstruction error (higher = more anomalous)
+            err = ((pred - target) ** 2).mean(dim=1)
 
-        message.set_metadata("predictions", 1 - cp.from_dlpack(pos_pred.float()))  # Set predictions as a cupy array
+        message.set_metadata("predictions", cp.from_dlpack(err.float()))  # Set predictions as a cupy array
         return message
 
     def _build_single(self, builder: mrc.Builder, input_node: mrc.SegmentObject) -> mrc.SegmentObject:

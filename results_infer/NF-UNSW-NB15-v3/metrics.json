@@ -1,16 +1,16 @@
 {
-  "auc_roc": 0.5,
-  "pr_auc": 0.0904408866995074,
-  "precision": 0.0,
-  "recall": 0.0,
-  "f1": 0.0,
-  "fpr": 0.0,
-  "tpr": 0.0,
-  "threshold": Infinity,
-  "tp": 0,
-  "fp": 0,
-  "tn": 1107843,
-  "fn": 110157,
+  "auc_roc": 0.8879336193435783,
+  "pr_auc": 0.3771473707973685,
+  "precision": 0.390953499372054,
+  "recall": 0.8703849959603112,
+  "f1": 0.5395539123412708,
+  "fpr": 0.13482506095177746,
+  "tpr": 0.8703849959603112,
+  "threshold": 0.05132477730512619,
+  "tp": 95879,
+  "fp": 149365,
+  "tn": 958478,
+  "fn": 14278,
   "n_eval_edges": 1218000,
   "dataset": "NF-UNSW-NB15-v3",
   "edge_columns": [
@@ -18,6 +18,10 @@
     "OUT_BYTES",
     "FLOW_DURATION_MILLISECONDS"
   ],
-  "train_time_sec": 116.49546599388123,
-  "infer_time_sec": 1.1269690990447998
+  "log1p_columns": [],
+  "train_time_sec": 86.88132643699646,
+  "infer_time_sec": 1.638838768005371,
+  "best_epoch": 78,
+  "epochs_trained": 85,
+  "best_val_mse": 0.6924288541666667
 }

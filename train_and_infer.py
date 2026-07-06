@@ -46,7 +46,6 @@ from sklearn.metrics import (
 )
 from torch.utils.data import random_split
 from torch_geometric.loader import DataLoader
-from torch_geometric.utils import negative_sampling
 from tqdm import tqdm
 
 from src.guided_gae_model import (
@@ -94,39 +93,12 @@ def train(model, optimizer, data_loader, device):
     for data in tqdm(data_loader, desc='Training'):
         data = data.to(device)
         optimizer.zero_grad()
+        target = data.edge_attr[:, :-1]
         # Encode
-        z = model.encode(data.x, data.edge_index, data.edge_attr[:, :-1])
-        # Positive edges
-        pos_edge_index = data.edge_index
-        pos_edge_attr = data.edge_attr[:, :-1]
-
-        # Negative edges (sampled for negative examples)
-        neg_edge_index = negative_sampling(
-            edge_index=pos_edge_index,
-            num_nodes=data.num_nodes,
-            num_neg_samples=pos_edge_index.size(1),
-            method='sparse'
-        )
-
-        # For negative edges, we need to create dummy edge attributes (e.g., zeros)
-        neg_edge_attr = torch.zeros(neg_edge_index.size(1), data.edge_attr.size(1)-1).to(device)
-
-        # Decode positive edges
-        pos_pred = model.decode(z, pos_edge_index, pos_edge_attr, data.batch)
-
-        # Decode negative edges
-        neg_pred = model.decode(z, neg_edge_index, neg_edge_attr, data.batch)
-
-        # Create labels
-        pos_label = torch.ones(pos_pred.size()).to(device)
-        neg_label = torch.zeros(neg_pred.size()).to(device)
-
-        # Concatenate predictions and labels
-        preds = torch.cat([pos_pred, neg_pred], dim=0)
-        labels = torch.cat([pos_label, neg_label], dim=0)
-
-        # Compute loss
-        loss = F.binary_cross_entropy(preds, labels)
+        z = model.encode(data.x, data.edge_index, target)
+        # Reconstruct edge attributes from endpoint embeddings
+        pred = model.decode(z, data.edge_index, target, data.batch)
+        loss = F.mse_loss(pred, target)
         loss.backward()
         optimizer.step()
 
@@ -138,51 +110,20 @@ def train(model, optimizer, data_loader, device):
 
 
 def test(model, data_loader, device):
+    """Mean per-element reconstruction MSE on held-out benign graphs."""
     model.eval()
-    preds = []
-    labels = []
+    total_sq_err = 0.0
+    total_elements = 0
     with torch.no_grad():
-        for data in tqdm(data_loader, desc='Testing'):
+        for data in tqdm(data_loader, desc='Validating'):
             data = data.to(device)
+            target = data.edge_attr[:, :-1]
+            z = model.encode(data.x, data.edge_index, target)
+            pred = model.decode(z, data.edge_index, target, data.batch)
+            total_sq_err += F.mse_loss(pred, target, reduction='sum').item()
+            total_elements += target.numel()
 
-            # Encode
-            z = model.encode(data.x, data.edge_index, data.edge_attr[:, :-1])
-
-            # Positive edges
-            pos_edge_index = data.edge_index
-            pos_edge_attr = data.edge_attr[:, :-1]
-
-            # Negative edges (sampled for negative examples)
-            neg_edge_index = negative_sampling(
-                edge_index=pos_edge_index,
-                num_nodes=data.num_nodes,
-                num_neg_samples=pos_edge_index.size(1),
-                method='sparse'
-            )
-
-            # For negative edges, we need to create dummy edge attributes (e.g., zeros)
-            neg_edge_attr = torch.zeros(neg_edge_index.size(1), data.edge_attr.size(1)-1).to(device)
-
-            # Decode positive edges
-            pos_pred = model.decode(z, pos_edge_index, pos_edge_attr, data.batch)
-            pos_label = torch.ones(pos_pred.size()).to(device)
-
-            # Decode negative edges
-            neg_pred = model.decode(z, neg_edge_index, neg_edge_attr, data.batch)
-            neg_label = torch.zeros(neg_pred.size()).to(device)
-
-            # Collect predictions and labels
-            preds.append(torch.cat([pos_pred, neg_pred], dim=0).cpu())
-            labels.append(torch.cat([pos_label, neg_label], dim=0).cpu())
-
-    preds = torch.cat(preds, dim=0).numpy()
-    labels = torch.cat(labels, dim=0).numpy()
-
-    # Compute ROC-AUC and Average Precision
-    roc_auc = roc_auc_score(labels, preds)
-    avg_precision = average_precision_score(labels, preds)
-
-    return roc_auc, avg_precision
+    return total_sq_err / total_elements
 
 
 def split_data(data_list, train_ratio=0.8):
@@ -200,10 +141,12 @@ def compute_metrics(data_loader, model, device, roc_plot_path=None):
     with torch.no_grad():
         for data in tqdm(data_loader, desc='Inference examples'):
             data = data.to(device)
-            z = model.encode(data.x, data.edge_index, data.edge_attr[:, :-1])
-            preds = model.decode(z, data.edge_index, data.edge_attr[:, :-1], data.batch)
-            # Likelihood of Not Belonging in Graph
-            all_preds.append(1 - np.asarray(preds.float().cpu().numpy()))
+            target = data.edge_attr[:, :-1]
+            z = model.encode(data.x, data.edge_index, target)
+            pred = model.decode(z, data.edge_index, target, data.batch)
+            # Anomaly score: per-edge reconstruction error (higher = more anomalous)
+            err = ((pred - target) ** 2).mean(dim=1)
+            all_preds.append(err.float().cpu().numpy())
             all_labels.append(np.asarray(data.edge_attr[:, -1].cpu().numpy()))
 
     all_preds = np.concatenate(all_preds)
@@ -298,21 +241,34 @@ def resolve_edge_columns(spec):
     return [c.strip() for c in spec.split(",") if c.strip()]
 
 
+def resolve_log1p_columns(spec, edge_columns):
+    if spec == "none":
+        return []
+    if spec == "baseline":
+        return list(BASELINE_EDGE_COLUMNS)
+    if spec == "all":
+        return list(edge_columns)
+    return [c.strip() for c in spec.split(",") if c.strip()]
+
+
 def parse_args():
     p = argparse.ArgumentParser(description="Train & evaluate the Guided GAE anomaly detector for NetFlow v3 datasets")
     p.add_argument("--datasets", default="all", help=f"comma-separated subset of {list(DATASETS)} or 'all' (default: train a separate model per dataset)")
     p.add_argument("--data-dir", default=None, help="folder containing the *_train.parquet/*_holdout.parquet files")
-    p.add_argument("--edge-columns", default="baseline", help="'baseline' (3 cols), 'all' (43 cols), or comma-separated column names")
+    p.add_argument("--edge-columns", default="baseline", help="'baseline' (3 cols), 'all' (43 cols), or comma-separated column names. PROTOCOL/L4_SRC_PORT/L4_DST_PORT are auto one-hot encoded; TOTAL_PKTS (IN_PKTS+OUT_PKTS) and TOTAL_BYTES (IN_BYTES+OUT_BYTES) are derived columns")
+    p.add_argument("--log1p-columns", default="none", help="edge columns to log1p-compress before scaling: 'none' (default, raw features), 'baseline', 'all' (= every selected edge column), or comma-separated column names")
+    p.add_argument("--top-k-ports", type=int, default=16, help="number of most-frequent non-ephemeral destination ports to one-hot; the rest fall into 'other'/'ephemeral' buckets")
     p.add_argument("--window-size", type=int, default=1000, help="flows per graph window")
     p.add_argument("--step-size", type=int, default=1000, help="row stride between windows")
     p.add_argument("--node-dim", type=int, default=32, help="node embedding dimension")
-    p.add_argument("--epochs", type=int, default=9)
+    p.add_argument("--epochs", type=int, default=50, help="max epochs; early stopping usually ends training sooner")
+    p.add_argument("--patience", type=int, default=10, help="stop after this many epochs without val_mse improvement; 0 disables early stopping (always trains the full --epochs, still restores the best-val_mse epoch)")
     p.add_argument("--batch-size", type=int, default=256, help="graph-windows per batch")
     p.add_argument("--hidden-dim", type=int, default=256)
     p.add_argument("--global-emb-dim", type=int, default=128)
     p.add_argument("--heads", type=int, default=4)
     p.add_argument("--lr", type=float, default=0.003)
-    p.add_argument("--scheduler-tmax", type=int, default=5)
+    p.add_argument("--scheduler-tmax", type=int, default=None, help="cosine annealing T_max (default: --epochs, so LR decays once over the full run)")
     p.add_argument("--train-ratio", type=float, default=0.8, help="fraction of benign windows used for training vs held-out validation")
     p.add_argument("--device", default="auto", help="'auto', 'cuda', 'cuda:0', or 'cpu'")
     p.add_argument("--seed", type=int, default=42)
@@ -334,6 +290,7 @@ def main():
 
     data_dir = resolve_data_dir(args.data_dir)
     edge_columns = resolve_edge_columns(args.edge_columns)
+    log1p_columns = resolve_log1p_columns(args.log1p_columns, edge_columns)
 
     dataset_names = list(DATASETS) if args.datasets == "all" else [d.strip() for d in args.datasets.split(",")]
     for name in dataset_names:
@@ -384,6 +341,8 @@ def main():
             train_data,
             edge_columns=edge_columns,
             node_dim=args.node_dim,
+            log1p_columns=log1p_columns,
+            top_k_ports=args.top_k_ports,
         )
 
         logger.info("building windowed graphs from training data")
@@ -405,7 +364,11 @@ def main():
         attack_loader = DataLoader(attack_graphs, batch_size=args.batch_size, shuffle=False)
 
         in_channels = benign_graphs[0].x.size(1)
-        edge_attr_dim = len(edge_columns)
+        # categorical columns expand into one-hot blocks, so the model's edge dim
+        # is the transformed feature count, not the raw column count
+        edge_attr_dim = processor.feature_dim
+        logger.info(f"edge feature dim = {edge_attr_dim} ({len(processor.numeric_columns)} numeric "
+                    f"+ {edge_attr_dim - len(processor.numeric_columns)} one-hot categorical)")
 
         encoder = GATEncoderWithEdgeAttr(in_channels, args.hidden_dim, edge_attr_dim, num_heads=args.heads)
         global_edge_embedding = GlobalEdgeEmbedding(edge_attr_dim, args.global_emb_dim)
@@ -413,31 +376,61 @@ def main():
         model = GAEWithGlobalEdge(encoder, decoder, global_edge_embedding).to(device)
 
         optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.scheduler_tmax)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.scheduler_tmax or args.epochs)
+
+        best_val_mse = float("inf")
+        best_epoch = 0
+        best_state = None
+        epochs_no_improve = 0
+        epochs_trained = 0
 
         for epoch in range(1, args.epochs + 1):
             t0 = time.time()
             train_loss = train(model, optimizer, train_loader, device)
-            val_auc, val_ap = test(model, val_loader, device)
+            val_mse = test(model, val_loader, device)
             scheduler.step()
+            epochs_trained = epoch
             logger.info(
-                f"epoch {epoch}/{args.epochs} bce_loss={train_loss:.6f} "
-                f"val_auc={val_auc:.4f} val_ap={val_ap:.4f} ({time.time() - t0:.1f}s)"
+                f"epoch {epoch}/{args.epochs} train_mse={train_loss:.6f} "
+                f"val_mse={val_mse:.6f} ({time.time() - t0:.1f}s)"
             )
+            if val_mse < best_val_mse:
+                best_val_mse = val_mse
+                best_epoch = epoch
+                best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+                if args.patience > 0 and epochs_no_improve >= args.patience:
+                    logger.info(
+                        f"early stopping at epoch {epoch}: no val_mse improvement "
+                        f"for {args.patience} epochs (best={best_val_mse:.6f} @ epoch {best_epoch})"
+                    )
+                    break
             if device.type == "cuda":
                 torch.cuda.empty_cache()
 
+        model.load_state_dict(best_state)
+        logger.info(f"restored best checkpoint from epoch {best_epoch} (val_mse={best_val_mse:.6f})")
         train_time = time.time() - t_start
         torch.save({
             "model_state": model.state_dict(),
             "edge_columns": edge_columns,
-            "scaler_mean": processor.edge_scaler.mean_,
-            "scaler_scale": processor.edge_scaler.scale_,
+            "numeric_columns": processor.numeric_columns,
+            "categorical_columns": processor.categorical_columns,
+            "log1p_columns": processor.log1p_columns,
+            "protocol_vocab": processor.protocol_vocab,
+            "dst_port_vocab": processor.dst_port_vocab,
+            "feature_names": processor.feature_names,
+            "scaler_mean": processor.edge_scaler.mean_ if processor.edge_scaler is not None else None,
+            "scaler_scale": processor.edge_scaler.scale_ if processor.edge_scaler is not None else None,
             "hidden_dim": args.hidden_dim,
             "global_emb_dim": args.global_emb_dim,
             "heads": args.heads,
             "node_dim": args.node_dim,
             "window_size": args.window_size,
+            "best_epoch": best_epoch,
+            "best_val_mse": best_val_mse,
         }, ckpt_path)
         logger.info(f"saved checkpoint to {ckpt_path} (train_time={train_time:.1f}s)")
 
@@ -450,8 +443,12 @@ def main():
         metrics.update({
             "dataset": name,
             "edge_columns": edge_columns,
+            "log1p_columns": log1p_columns,
             "train_time_sec": train_time,
             "infer_time_sec": infer_time,
+            "best_epoch": best_epoch,
+            "epochs_trained": epochs_trained,
+            "best_val_mse": best_val_mse,
         })
         with open(metrics_path, "w") as f:
             json.dump(metrics, f, indent=2)

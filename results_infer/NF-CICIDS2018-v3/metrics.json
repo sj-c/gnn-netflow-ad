@@ -1,0 +1,23 @@
+{
+  "auc_roc": 0.44262326933104856,
+  "pr_auc": 0.11798734658689071,
+  "precision": 0.0,
+  "recall": 0.0,
+  "f1": 0.0,
+  "fpr": 0.0,
+  "tpr": 0.0,
+  "threshold": Infinity,
+  "tp": 0,
+  "fp": 0,
+  "tn": 15472139,
+  "fn": 2093861,
+  "n_eval_edges": 17566000,
+  "dataset": "NF-CICIDS2018-v3",
+  "edge_columns": [
+    "IN_BYTES",
+    "OUT_BYTES",
+    "FLOW_DURATION_MILLISECONDS"
+  ],
+  "train_time_sec": 205.67231464385986,
+  "infer_time_sec": 22.322413206100464
+}

@@ -1,0 +1,23 @@
+{
+  "auc_roc": 0.49525316748444087,
+  "pr_auc": 0.5270604057127906,
+  "precision": 0.0,
+  "recall": 0.0,
+  "f1": 0.0,
+  "fpr": 0.0,
+  "tpr": 0.0,
+  "threshold": Infinity,
+  "tp": 0,
+  "fp": 0,
+  "tn": 9497391,
+  "fn": 10625609,
+  "n_eval_edges": 20123000,
+  "dataset": "NF-ToN-IoT-v3",
+  "edge_columns": [
+    "IN_BYTES",
+    "OUT_BYTES",
+    "FLOW_DURATION_MILLISECONDS"
+  ],
+  "train_time_sec": 176.8795771598816,
+  "infer_time_sec": 20.014557361602783
+}

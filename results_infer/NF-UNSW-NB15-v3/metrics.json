@@ -1,0 +1,23 @@
+{
+  "auc_roc": 0.5,
+  "pr_auc": 0.0904408866995074,
+  "precision": 0.0,
+  "recall": 0.0,
+  "f1": 0.0,
+  "fpr": 0.0,
+  "tpr": 0.0,
+  "threshold": Infinity,
+  "tp": 0,
+  "fp": 0,
+  "tn": 1107843,
+  "fn": 110157,
+  "n_eval_edges": 1218000,
+  "dataset": "NF-UNSW-NB15-v3",
+  "edge_columns": [
+    "IN_BYTES",
+    "OUT_BYTES",
+    "FLOW_DURATION_MILLISECONDS"
+  ],
+  "train_time_sec": 116.49546599388123,
+  "infer_time_sec": 1.1269690990447998
+}

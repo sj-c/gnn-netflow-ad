@@ -1,4 +1,6 @@
 logs/
+checkpoints_infer/
+.gitignore
 checkpoints/
 results/
 logs_infer/

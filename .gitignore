@@ -1,2 +1,4 @@
+__pycache__
+results_infer/
 checkpoints_infer/
 logs_infer/

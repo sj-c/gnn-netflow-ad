@@ -67,7 +67,8 @@ SRC_IP_COL = "IPV4_SRC_ADDR"
 DST_IP_COL = "IPV4_DST_ADDR"
 LABEL_COL = "Label"
 
-BASELINE_EDGE_COLUMNS = ["IN_BYTES", "OUT_BYTES", "FLOW_DURATION_MILLISECONDS"]
+BASELINE_EDGE_COLUMNS = ["PROTOCOL","L4_SRC_PORT","L4_DST_PORT","MIN_TTL","FLOW_DURATION_MILLISECONDS","TOTAL_PKTS","TOTAL_BYTES"]
+BASELINE_LOG1P_COLUMNS = ["FLOW_DURATION_MILLISECONDS","TOTAL_PKTS", "TOTAL_BYTES"]
 
 ALL_EDGE_COLUMNS = [
     "L7_PROTO", "IN_BYTES", "IN_PKTS", "OUT_BYTES", "OUT_PKTS", "TCP_FLAGS",
@@ -257,18 +258,19 @@ def parse_args():
     p.add_argument("--data-dir", default=None, help="folder containing the *_train.parquet/*_holdout.parquet files")
     p.add_argument("--edge-columns", default="baseline", help="'baseline' (3 cols), 'all' (43 cols), or comma-separated column names. PROTOCOL/L4_SRC_PORT/L4_DST_PORT are auto one-hot encoded; TOTAL_PKTS (IN_PKTS+OUT_PKTS) and TOTAL_BYTES (IN_BYTES+OUT_BYTES) are derived columns")
     p.add_argument("--log1p-columns", default="none", help="edge columns to log1p-compress before scaling: 'none' (default, raw features), 'baseline', 'all' (= every selected edge column), or comma-separated column names")
-    p.add_argument("--top-k-ports", type=int, default=16, help="number of most-frequent non-ephemeral destination ports to one-hot; the rest fall into 'other'/'ephemeral' buckets")
-    p.add_argument("--window-size", type=int, default=1000, help="flows per graph window")
+    p.add_argument("--top-k-ports", type=int, default=4, help="number of most-frequent non-ephemeral destination ports to one-hot; the rest fall into 'other'/'ephemeral' buckets")
+    p.add_argument("--window-size", type=int, default=2000, help="flows per graph window")
     p.add_argument("--step-size", type=int, default=1000, help="row stride between windows")
     p.add_argument("--node-dim", type=int, default=32, help="node embedding dimension")
-    p.add_argument("--epochs", type=int, default=50, help="max epochs; early stopping usually ends training sooner")
-    p.add_argument("--patience", type=int, default=10, help="stop after this many epochs without val_mse improvement; 0 disables early stopping (always trains the full --epochs, still restores the best-val_mse epoch)")
+    p.add_argument("--epochs", type=int, default=250, help="max epochs; early stopping usually ends training sooner")
+    p.add_argument("--patience", type=int, default=20, help="stop after this many epochs without val_mse improvement; 0 disables early stopping (always trains the full --epochs, still restores the best-val_mse epoch)")
     p.add_argument("--batch-size", type=int, default=256, help="graph-windows per batch")
     p.add_argument("--hidden-dim", type=int, default=256)
     p.add_argument("--global-emb-dim", type=int, default=128)
     p.add_argument("--heads", type=int, default=4)
     p.add_argument("--lr", type=float, default=0.003)
-    p.add_argument("--scheduler-tmax", type=int, default=None, help="cosine annealing T_max (default: --epochs, so LR decays once over the full run)")
+    p.add_argument("--scheduler-factor", type=float, default=0.5, help="ReduceLROnPlateau: factor by which the LR is multiplied when val_mse plateaus")
+    p.add_argument("--scheduler-patience", type=int, default=3, help="ReduceLROnPlateau: epochs without val_mse improvement before reducing LR")
     p.add_argument("--train-ratio", type=float, default=0.8, help="fraction of benign windows used for training vs held-out validation")
     p.add_argument("--device", default="auto", help="'auto', 'cuda', 'cuda:0', or 'cpu'")
     p.add_argument("--seed", type=int, default=42)
@@ -376,7 +378,9 @@ def main():
         model = GAEWithGlobalEdge(encoder, decoder, global_edge_embedding).to(device)
 
         optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.scheduler_tmax or args.epochs)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", factor=args.scheduler_factor, patience=args.scheduler_patience
+        )
 
         best_val_mse = float("inf")
         best_epoch = 0
@@ -388,7 +392,7 @@ def main():
             t0 = time.time()
             train_loss = train(model, optimizer, train_loader, device)
             val_mse = test(model, val_loader, device)
-            scheduler.step()
+            scheduler.step(val_mse)
             epochs_trained = epoch
             logger.info(
                 f"epoch {epoch}/{args.epochs} train_mse={train_loss:.6f} "
@@ -414,9 +418,6 @@ def main():
         logger.info(f"restored best checkpoint from epoch {best_epoch} (val_mse={best_val_mse:.6f})")
         train_time = time.time() - t_start
         torch.save({
-            "model_state": model.state_dict(),
-            "edge_columns": edge_columns,
-            "numeric_columns": processor.numeric_columns,
             "categorical_columns": processor.categorical_columns,
             "log1p_columns": processor.log1p_columns,
             "protocol_vocab": processor.protocol_vocab,

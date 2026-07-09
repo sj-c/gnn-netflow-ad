@@ -1,3 +1,4 @@
+sweep_runs/
 __pycache__
 results_infer/
 checkpoints_infer/

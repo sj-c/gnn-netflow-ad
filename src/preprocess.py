@@ -206,7 +206,7 @@ class NetflowPreprocessor:
 
     def __init__(self, df: pd.DataFrame, edge_columns: [str], node_dim: int, normalize=True, src_ip='IPV4_SRC_ADDR',
                  dst_ip='IPV4_DST_ADDR', label='Label', log1p_columns=None, top_k_ports=16,
-                 protocol_vocab=None, dst_port_vocab=None):
+                 top_k_protocols=8, protocol_vocab=None, dst_port_vocab=None):
         self.edge_columns = edge_columns
         self.node_dim = node_dim
         self.edge_scaler = None
@@ -215,6 +215,7 @@ class NetflowPreprocessor:
         self.dst_ip = dst_ip
         self.label = label
         self.top_k_ports = top_k_ports
+        self.top_k_protocols = top_k_protocols
         # order-preserving split: numerics go through the scaler, categoricals become one-hot blocks
         self.numeric_columns = [c for c in edge_columns if c not in CATEGORICAL_EDGE_COLUMNS]
         self.categorical_columns = [c for c in edge_columns if c in CATEGORICAL_EDGE_COLUMNS]
@@ -231,8 +232,14 @@ class NetflowPreprocessor:
         self.protocol_vocab = None
         self.dst_port_vocab = None
         if "PROTOCOL" in self.categorical_columns:
-            self.protocol_vocab = (list(protocol_vocab) if protocol_vocab is not None
-                                   else sorted(self.df["PROTOCOL"].unique().tolist()))
+            if protocol_vocab is not None:
+                self.protocol_vocab = list(protocol_vocab)
+            else:
+                # top-K most frequent protocols only; a single protocol scan in the
+                # training data would otherwise blow the vocab up to ~254 entries.
+                # Everything outside the top K falls into "other".
+                counts = self.df["PROTOCOL"].value_counts()
+                self.protocol_vocab = sorted(counts.head(self.top_k_protocols).index.tolist())
         if "L4_DST_PORT" in self.categorical_columns:
             if dst_port_vocab is not None:
                 self.dst_port_vocab = list(dst_port_vocab)

@@ -1,0 +1,325 @@
+<mxfile host="65bd71144e">
+    <diagram name="Page-1" id="x2bGP2uL3ZqZW_B89xWM">
+        <mxGraphModel dx="1614" dy="990" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="GRP-INPUT" value="① Input — raw NetFlow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#666666;strokeWidth=2;verticalAlign=top;align=left;fontStyle=1;fontSize=13;fontColor=#666666;fontFamily=Segoe UI;arcSize=2;spacingLeft=10;spacingTop=6;dashed=0;" parent="1" vertex="1">
+                    <mxGeometry x="24" y="72" width="748" height="132" as="geometry"/>
+                </mxCell>
+                <mxCell id="GRP-GRAPH" value="② Graph construction" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FBFC;strokeColor=#0E8088;strokeWidth=2;verticalAlign=top;align=left;fontStyle=1;fontSize=13;fontColor=#0E8088;fontFamily=Segoe UI;arcSize=2;spacingLeft=10;spacingTop=6;dashed=0;" parent="1" vertex="1">
+                    <mxGeometry x="22" y="212" width="392" height="296" as="geometry"/>
+                </mxCell>
+                <mxCell id="GRP-ENCODER" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F8FE;strokeColor=#6C8EBF;strokeWidth=2;verticalAlign=top;align=left;fontStyle=1;fontSize=13;fontColor=#6C8EBF;fontFamily=Segoe UI;arcSize=2;spacingLeft=10;spacingTop=6;dashed=0;" parent="1" vertex="1">
+                    <mxGeometry x="422" y="206" width="360" height="452" as="geometry"/>
+                </mxCell>
+                <mxCell id="GRP-CONTEXT" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F7F3FA;strokeColor=#9673A6;strokeWidth=2;verticalAlign=top;align=left;fontStyle=1;fontSize=13;fontColor=#9673A6;fontFamily=Segoe UI;arcSize=2;spacingLeft=10;spacingTop=6;dashed=0;" parent="1" vertex="1">
+                    <mxGeometry x="24" y="679" width="268" height="112" as="geometry"/>
+                </mxCell>
+                <mxCell id="GRP-DECODER" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9F3;strokeColor=#D79B00;strokeWidth=2;verticalAlign=top;align=left;fontStyle=1;fontSize=13;fontColor=#D79B00;fontFamily=Segoe UI;arcSize=2;spacingLeft=10;spacingTop=6;dashed=0;" parent="1" vertex="1">
+                    <mxGeometry x="424" y="681" width="352" height="109" as="geometry"/>
+                </mxCell>
+                <mxCell id="GRP-SCORING" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF5F4;strokeColor=#B85450;strokeWidth=2;verticalAlign=top;align=left;fontStyle=1;fontSize=13;fontColor=#B85450;fontFamily=Segoe UI;arcSize=2;spacingLeft=10;spacingTop=6;dashed=0;" parent="1" vertex="1">
+                    <mxGeometry x="424" y="812" width="352" height="156" as="geometry"/>
+                </mxCell>
+                <mxCell id="TITLE-1" value="Graph Autoencoder — NetFlow Anomaly Detection" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontStyle=1;fontSize=18;fontFamily=Segoe UI;" parent="1" vertex="1">
+                    <mxGeometry x="170" y="40" width="520" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="PLAIN-1" value="&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;How it works&lt;/b&gt;&lt;/span&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;1.&amp;nbsp; Turn network traffic into a &lt;b&gt;graph&lt;/b&gt;: IP addr = nodes, netflow features = edges.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;2.&amp;nbsp; Learn a &lt;b&gt;&#39;fingerprint&#39;&lt;/b&gt; for every IP, using largely &lt;b&gt;normal &lt;/b&gt;traffic.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;3.&amp;nbsp; Try to &lt;b&gt;reconstruct&amp;nbsp;&lt;/b&gt;each flow using only those fingerprints.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;4.&amp;nbsp; Rebuilt badly = &lt;b&gt;anomalous&amp;nbsp;&lt;/b&gt;→ flag it as a possible attack.&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;align=left;verticalAlign=top;spacing=10;fontSize=12;fontFamily=Segoe UI;gradientColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="37.5" y="805" width="378.5" height="176" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-1" value="Raw NetFlow data — one row = one network connection (&#39;flow&#39;)" style="childLayout=tableLayout;recursiveResize=0;strokeColor=#607D8B;fillColor=#ECEFF1;shadow=1;fontFamily=Segoe UI;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="134" width="700" height="62" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-2" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;top=0;left=0;bottom=0;right=0;dropTarget=0;collapsible=0;recursiveResize=0;expand=0;fontStyle=0;strokeColor=inherit;fillColor=#ffffff;" parent="HpeB49ZlNlcB6vtWvLAx-1" vertex="1">
+                    <mxGeometry width="700" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-3" value="Source IP" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#607D8B;align=center;fontStyle=1;fontColor=#FFFFFF;html=1;fontFamily=Segoe UI;" parent="HpeB49ZlNlcB6vtWvLAx-2" vertex="1">
+                    <mxGeometry width="83" height="20" as="geometry">
+                        <mxRectangle width="83" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-4" value="Destination IP" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#607D8B;align=center;fontStyle=1;fontColor=#FFFFFF;html=1;fontFamily=Segoe UI;" parent="HpeB49ZlNlcB6vtWvLAx-2" vertex="1">
+                    <mxGeometry x="83" width="86" height="20" as="geometry">
+                        <mxRectangle width="86" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-5" value="Protocol" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#607D8B;align=center;fontStyle=1;fontColor=#FFFFFF;html=1;fontFamily=Segoe UI;" parent="HpeB49ZlNlcB6vtWvLAx-2" vertex="1">
+                    <mxGeometry x="169" width="61" height="20" as="geometry">
+                        <mxRectangle width="61" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-34" value="Source port" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#607D8B;align=center;fontStyle=1;fontColor=#FFFFFF;html=1;fontFamily=Segoe UI;" parent="HpeB49ZlNlcB6vtWvLAx-2" vertex="1">
+                    <mxGeometry x="230" width="80" height="20" as="geometry">
+                        <mxRectangle width="80" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-31" value="Dest port" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#607D8B;align=center;fontStyle=1;fontColor=#FFFFFF;html=1;fontFamily=Segoe UI;" parent="HpeB49ZlNlcB6vtWvLAx-2" vertex="1">
+                    <mxGeometry x="310" width="70" height="20" as="geometry">
+                        <mxRectangle width="70" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-28" value="Total Bytes" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#607D8B;align=center;fontStyle=1;fontColor=#FFFFFF;html=1;fontFamily=Segoe UI;" parent="HpeB49ZlNlcB6vtWvLAx-2" vertex="1">
+                    <mxGeometry x="380" width="80" height="20" as="geometry">
+                        <mxRectangle width="80" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-25" value="Total packets" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#607D8B;align=center;fontStyle=1;fontColor=#FFFFFF;html=1;fontFamily=Segoe UI;" parent="HpeB49ZlNlcB6vtWvLAx-2" vertex="1">
+                    <mxGeometry x="460" width="80" height="20" as="geometry">
+                        <mxRectangle width="80" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-22" value="Flow duration" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#607D8B;align=center;fontStyle=1;fontColor=#FFFFFF;html=1;fontFamily=Segoe UI;" parent="HpeB49ZlNlcB6vtWvLAx-2" vertex="1">
+                    <mxGeometry x="540" width="90" height="20" as="geometry">
+                        <mxRectangle width="90" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-37" value="Min TTL" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#607D8B;align=center;fontStyle=1;fontColor=#FFFFFF;html=1;fontFamily=Segoe UI;" parent="HpeB49ZlNlcB6vtWvLAx-2" vertex="1">
+                    <mxGeometry x="630" width="70" height="20" as="geometry">
+                        <mxRectangle width="70" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-6" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;top=0;left=0;bottom=0;right=0;dropTarget=0;collapsible=0;recursiveResize=0;expand=0;fontStyle=0;strokeColor=inherit;fillColor=#ffffff;" parent="HpeB49ZlNlcB6vtWvLAx-1" vertex="1">
+                    <mxGeometry y="20" width="700" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-7" value="192.168.1.10" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=inherit;align=center;whiteSpace=wrap;html=1;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-6" vertex="1">
+                    <mxGeometry width="83" height="22" as="geometry">
+                        <mxRectangle width="83" height="22" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-8" value="8.8.8.8" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=inherit;align=center;whiteSpace=wrap;html=1;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-6" vertex="1">
+                    <mxGeometry x="83" width="86" height="22" as="geometry">
+                        <mxRectangle width="86" height="22" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-9" value="UDP" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=inherit;align=center;whiteSpace=wrap;html=1;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-6" vertex="1">
+                    <mxGeometry x="169" width="61" height="22" as="geometry">
+                        <mxRectangle width="61" height="22" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-35" value="53421" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=inherit;align=center;whiteSpace=wrap;html=1;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-6" vertex="1">
+                    <mxGeometry x="230" width="80" height="22" as="geometry">
+                        <mxRectangle width="80" height="22" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-32" value="53" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=inherit;align=center;whiteSpace=wrap;html=1;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-6" vertex="1">
+                    <mxGeometry x="310" width="70" height="22" as="geometry">
+                        <mxRectangle width="70" height="22" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-29" value="512" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=inherit;align=center;whiteSpace=wrap;html=1;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-6" vertex="1">
+                    <mxGeometry x="380" width="80" height="22" as="geometry">
+                        <mxRectangle width="80" height="22" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-26" value="6" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=inherit;align=center;whiteSpace=wrap;html=1;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-6" vertex="1">
+                    <mxGeometry x="460" width="80" height="22" as="geometry">
+                        <mxRectangle width="80" height="22" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-23" value="120" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=inherit;align=center;whiteSpace=wrap;html=1;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-6" vertex="1">
+                    <mxGeometry x="540" width="90" height="22" as="geometry">
+                        <mxRectangle width="90" height="22" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-38" value="64" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=inherit;align=center;whiteSpace=wrap;html=1;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-6" vertex="1">
+                    <mxGeometry x="630" width="70" height="22" as="geometry">
+                        <mxRectangle width="70" height="22" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-10" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;top=0;left=0;bottom=0;right=0;dropTarget=0;collapsible=0;recursiveResize=0;expand=0;fontStyle=1;strokeColor=inherit;fillColor=#CFD8DC;" parent="HpeB49ZlNlcB6vtWvLAx-1" vertex="1">
+                    <mxGeometry y="42" width="700" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-11" value="10.0.0.5" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#ECEFF1;whiteSpace=wrap;html=1;align=center;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-10" vertex="1">
+                    <mxGeometry width="83" height="20" as="geometry">
+                        <mxRectangle width="83" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-12" value="172.217.0.14" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#ECEFF1;whiteSpace=wrap;html=1;align=center;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-10" vertex="1">
+                    <mxGeometry x="83" width="86" height="20" as="geometry">
+                        <mxRectangle width="86" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-13" value="TCP" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#ECEFF1;whiteSpace=wrap;html=1;align=center;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-10" vertex="1">
+                    <mxGeometry x="169" width="61" height="20" as="geometry">
+                        <mxRectangle width="61" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-36" value="49678" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#ECEFF1;whiteSpace=wrap;html=1;align=center;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-10" vertex="1">
+                    <mxGeometry x="230" width="80" height="20" as="geometry">
+                        <mxRectangle width="80" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-33" value="443" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#ECEFF1;whiteSpace=wrap;html=1;align=center;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-10" vertex="1">
+                    <mxGeometry x="310" width="70" height="20" as="geometry">
+                        <mxRectangle width="70" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-30" value="20480" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#ECEFF1;whiteSpace=wrap;html=1;align=center;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-10" vertex="1">
+                    <mxGeometry x="380" width="80" height="20" as="geometry">
+                        <mxRectangle width="80" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-27" value="24" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#ECEFF1;whiteSpace=wrap;html=1;align=center;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-10" vertex="1">
+                    <mxGeometry x="460" width="80" height="20" as="geometry">
+                        <mxRectangle width="80" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-24" value="850" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#ECEFF1;whiteSpace=wrap;html=1;align=center;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-10" vertex="1">
+                    <mxGeometry x="540" width="90" height="20" as="geometry">
+                        <mxRectangle width="90" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-39" value="128" style="connectable=0;recursiveResize=0;strokeColor=inherit;fillColor=#ECEFF1;whiteSpace=wrap;html=1;align=center;fontFamily=Segoe UI;fontSize=12;" parent="HpeB49ZlNlcB6vtWvLAx-10" vertex="1">
+                    <mxGeometry x="630" width="70" height="20" as="geometry">
+                        <mxRectangle width="70" height="20" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-40" value="" style="shape=flexArrow;endArrow=classic;html=1;rounded=0;" parent="1" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="140" y="216" as="sourcePoint"/>
+                        <mxPoint x="140" y="275" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-41" value="Slice into overlapping windows of 2000 rows" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Segoe UI;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="140" y="219" width="260" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-43" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;strokeColor=#CC0066;" parent="1" vertex="1">
+                    <mxGeometry x="95" y="312.5" width="30" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-44" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;strokeColor=#CC0066;" parent="1" vertex="1">
+                    <mxGeometry x="155" y="312.5" width="30" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-45" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;strokeColor=#CC0066;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="362.5" width="30" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-46" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;strokeColor=#CC0066;" parent="1" vertex="1">
+                    <mxGeometry x="185" y="362.5" width="30" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-55" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontColor=#0000FF;strokeColor=#0000FF;" parent="1" source="HpeB49ZlNlcB6vtWvLAx-48" target="HpeB49ZlNlcB6vtWvLAx-47" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-48" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;strokeColor=#CC0066;" parent="1" vertex="1">
+                    <mxGeometry x="155" y="422.5" width="30" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-49" value="" style="endArrow=classic;html=1;rounded=0;entryX=0;entryY=1;entryDx=0;entryDy=0;strokeColor=#0000FF;" parent="1" source="HpeB49ZlNlcB6vtWvLAx-47" target="HpeB49ZlNlcB6vtWvLAx-44" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="115" y="432.5" as="sourcePoint"/>
+                        <mxPoint x="165" y="382.5" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-50" value="" style="endArrow=classic;html=1;rounded=0;entryX=0;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;strokeColor=#0000FF;" parent="1" source="HpeB49ZlNlcB6vtWvLAx-45" target="HpeB49ZlNlcB6vtWvLAx-47" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="75" y="386.5" as="sourcePoint"/>
+                        <mxPoint x="119" y="292.5" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-51" value="" style="endArrow=classic;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;strokeColor=#0000FF;" parent="1" source="HpeB49ZlNlcB6vtWvLAx-47" target="HpeB49ZlNlcB6vtWvLAx-46" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="125" y="446.5" as="sourcePoint"/>
+                        <mxPoint x="169" y="352.5" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-52" value="" style="endArrow=classic;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#0000FF;" parent="1" target="HpeB49ZlNlcB6vtWvLAx-44" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="125" y="326.5" as="sourcePoint"/>
+                        <mxPoint x="199" y="322.5" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-53" value="" style="endArrow=classic;html=1;rounded=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;strokeColor=#0000FF;" parent="1" source="HpeB49ZlNlcB6vtWvLAx-48" target="HpeB49ZlNlcB6vtWvLAx-43" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="155" y="446.5" as="sourcePoint"/>
+                        <mxPoint x="199" y="352.5" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-54" value="" style="endArrow=classic;html=1;rounded=0;entryX=0;entryY=1;entryDx=0;entryDy=0;" parent="1" target="HpeB49ZlNlcB6vtWvLAx-47" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="115" y="432.5" as="sourcePoint"/>
+                        <mxPoint x="159" y="338.5" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-47" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;strokeColor=#CC0066;" parent="1" vertex="1">
+                    <mxGeometry x="95" y="422.5" width="30" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-56" value="Create 1 graph per window" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Segoe UI;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="278.5" width="190" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-57" value="&lt;span style=&quot;font-size: 13px;&quot;&gt;&lt;b&gt;&lt;font style=&quot;color: rgb(204, 0, 102);&quot;&gt;Node = (IP address)&lt;/font&gt;&lt;/b&gt;&lt;/span&gt;&lt;div&gt;&lt;font style=&quot;color: rgb(204, 0, 102);&quot;&gt;Its 32-dim&#39;fingerprint&#39; is built from the IP + its neighbours&lt;/font&gt;&lt;/div&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Segoe UI;fontSize=12;spacing=4;fontColor=#CC0066;" parent="1" vertex="1">
+                    <mxGeometry x="215" y="350" width="185" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-58" value="&lt;span style=&quot;font-size: 13px;&quot;&gt;&lt;font style=&quot;color: rgb(0, 0, 255);&quot;&gt;&lt;b&gt;Edge = one flow&lt;/b&gt; (a connection between two IPs)&lt;/font&gt;&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Segoe UI;fontSize=12;spacing=4;fontColor=#0000FF;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="452.5" width="225" height="37.5" as="geometry"/>
+                </mxCell>
+                <mxCell id="HpeB49ZlNlcB6vtWvLAx-60" value="Training data: almost entirely &lt;b&gt;normal / benign&lt;/b&gt; traffic&lt;div&gt;(the model only ever learns what NORMAL looks like)&lt;/div&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Segoe UI;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="90" width="350" height="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-1" value="" style="shape=flexArrow;endArrow=classic;html=1;rounded=0;" parent="1" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="200" y="310" as="sourcePoint"/>
+                        <mxPoint x="430" y="310" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-2" value="③ Encoder — compress the graph" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontStyle=1;fontFamily=Segoe UI;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="210" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="578rkK1eknUj8itF5g7i-3" target="578rkK1eknUj8itF5g7i-4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-3" value="&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;1. Graph Attention Network (GAT)&lt;/b&gt;&lt;/span&gt;&lt;div&gt;&lt;i&gt;4 &#39;heads&#39;&lt;/i&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Each computer updates its fingerprint by &#39;listening&#39; to its neighbours&#39; flows— paying &lt;b&gt;more attention&lt;/b&gt; to the important ones (the model learns which).&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;align=center;verticalAlign=top;spacing=10;fontFamily=Segoe UI;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="249" width="320" height="111" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="578rkK1eknUj8itF5g7i-4" target="578rkK1eknUj8itF5g7i-6" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-4" value="&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;2. Activation (ELU) → BatchNorm&lt;/b&gt;&lt;/span&gt;&lt;div&gt;Normalise fingerprint so training stays stable.&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;align=center;verticalAlign=top;spacing=10;fontFamily=Segoe UI;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="380" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="578rkK1eknUj8itF5g7i-6" target="578rkK1eknUj8itF5g7i-8" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-6" value="&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;3. Graph U-Net&lt;/b&gt;&lt;/span&gt;&lt;div&gt;&lt;i&gt;3 levels&lt;/i&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Zooms OUT to a summary of the whole graph, then back IN — so each fingerprint captures both close-up detail and the big picture.&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;align=center;verticalAlign=top;spacing=10;fontFamily=Segoe UI;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="454" width="320" height="116" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-8" value="&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;Output: z&lt;/b&gt;&lt;/span&gt;&lt;div&gt;one finished fingerprint (embedding) per computer&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;align=center;verticalAlign=middle;spacing=10;fontFamily=Segoe UI;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="590" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-10" value="&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;④ Global context&lt;/b&gt;&lt;/span&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Average all the flows together, pass through a small neural net (MLP) → one 128-dim summary &lt;b&gt;g.&lt;/b&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;align=center;verticalAlign=top;spacing=10;fontFamily=Segoe UI;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="37.5" y="687" width="242.5" height="96" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-12" value="&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;⑤ Decoder — rebuilds each flow&lt;/b&gt;&lt;/span&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;For a flow A→B, use only the two fingerprints z[A], z[B], g to &lt;b&gt;guess&lt;/b&gt; what flow looked like.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;align=center;verticalAlign=top;spacing=10;fontFamily=Segoe UI;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="690" width="320" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-17" value="" style="shape=flexArrow;endArrow=classic;html=1;rounded=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.533;exitY=0.975;exitDx=0;exitDy=0;exitPerimeter=0;" parent="1" source="HpeB49ZlNlcB6vtWvLAx-58" target="578rkK1eknUj8itF5g7i-10" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="140" y="510" as="sourcePoint"/>
+                        <mxPoint x="140" y="668" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-18" value="g" style="shape=flexArrow;endArrow=classic;html=1;rounded=0;fontFamily=Segoe UI;fontSize=13;fontStyle=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" parent="1" source="578rkK1eknUj8itF5g7i-10" target="578rkK1eknUj8itF5g7i-12" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="280" y="810" as="sourcePoint"/>
+                        <mxPoint x="343" y="850" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-19" value="z" style="shape=flexArrow;endArrow=classic;html=1;rounded=0;width=14.285714285714285;endSize=7.20952380952381;endWidth=26;fontFamily=Segoe UI;fontSize=13;fontStyle=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="578rkK1eknUj8itF5g7i-8" target="578rkK1eknUj8itF5g7i-12" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="575" y="749" as="sourcePoint"/>
+                        <mxPoint x="575" y="814" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-20" value="" style="shape=flexArrow;endArrow=classic;html=1;rounded=0;" parent="1" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="599.47" y="780" as="sourcePoint"/>
+                        <mxPoint x="599.47" y="820" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-21" value="Compare the GUESS vs the REAL flow" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Segoe UI;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="475" y="820" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="578rkK1eknUj8itF5g7i-23" value="&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;⑥ Reconstruction error&lt;/b&gt;&lt;/span&gt;&lt;div&gt;how far the guess was off (MSE per flow)&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;•&amp;nbsp;Low error → &lt;b&gt;normal;&amp;nbsp;&lt;/b&gt;&lt;span style=&quot;color: rgb(63, 63, 63); background-color: transparent;&quot;&gt;High error → &lt;/span&gt;&lt;b style=&quot;color: rgb(63, 63, 63); background-color: transparent;&quot;&gt;anomaly&amp;nbsp;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;Cut-off is chosen automatically from the ROC curve (Youden&#39;s J).&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;align=center;verticalAlign=top;spacing=10;fontFamily=Segoe UI;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="850" width="320" height="110" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

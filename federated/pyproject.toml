@@ -1,0 +1,97 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fedgnn"
+version = "1.0.0"
+description = "Federated (Flower/FedAvg) training of the Guided GAE NetFlow anomaly detector"
+license = "Apache-2.0"
+dependencies = [
+    "flwr[simulation]>=1.30.0",
+    "torch",
+    "torch-geometric",
+    "scikit-learn",
+    "pandas",
+    "pyarrow",
+    "scipy",
+    "matplotlib",
+    "tqdm",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.flwr.app]
+publisher = "sjchia"
+
+[tool.flwr.app.components]
+serverapp = "fedgnn.server_app:app"
+clientapp = "fedgnn.client_app:app"
+
+[tool.flwr.app.config]
+# aggregation strategy: "fedavg" (one global model) or "fedrep" (shared encoder body
+# aggregated across clients + a private per-client head = decoder + global-edge
+# embedding, the federated analogue of --personalised-frozen)
+strategy = "fedavg"
+# number of communication rounds (edit to change how long training runs)
+num-server-rounds = 150
+# FedRep only -- local epochs PER ROUND on each client (ignored by fedavg):
+#   head: freeze the body, train the head to convergence (fedrep-head-epochs is the
+#         epoch CAP; the head early-stops per round on the client's local val split
+#         after fedrep-head-patience epochs without improvement, 0 = run full cap)
+#   body: freeze the head, take a few steps on the shared encoder
+fedrep-head-epochs = 20
+fedrep-head-patience = 3
+fedrep-body-epochs = 1
+# rounds without weighted-mean val_mse improvement before stopping (0 = disabled);
+# the best-round weights are restored either way
+patience = 10
+round-timeout = 7200.0
+# training hyperparameters (mirror train_and_infer.py defaults)
+lr = 0.0001
+weight-decay = 0.0
+batch-size = 256
+hidden-dim = 128
+global-emb-dim = 64
+heads = 2
+node-dim = 32
+# data / preprocessing (per-client: each dataset fits its own scaler + vocabs)
+data-dir = ""
+edge-columns = "baseline"
+log1p-columns = "baseline"
+top-k-ports = 4
+top-k-protocols = 4
+window-size = 1000
+step-size = 1000
+train-ratio = 0.8
+max-train-rows = 1000000
+seed = 42
+
+
+#######################################################################
+# CONFIGURATION MIGRATION NOTICE:
+#
+# What was previously called "federation config" for SuperLink
+# connections in pyproject.toml has been renamed and moved.
+#
+# These settings are now **SuperLink connection configuration**
+# and are defined in the Flower configuration file.
+#
+# The entries below are commented out intentionally and are kept
+# only as a migration reference.
+#
+# Docs: https://flower.ai/docs/framework/ref-flower-configuration.html
+#######################################################################
+
+# [tool.flwr.federations]
+# default = "local-simulation"
+
+# [tool.flwr.federations.local-simulation]
+# options.num-supernodes = 4
+
+# # on the GPU machine: 4 clients share one GPU (0.25 each)
+# [tool.flwr.federations.local-simulation-gpu]
+# options.num-supernodes = 4
+# options.backend.client-resources.num-cpus = 2
+# options.backend.client-resources.num-gpus = 0.25

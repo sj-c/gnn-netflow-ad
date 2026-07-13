@@ -1,10 +1,13 @@
-"""Score the federated (FedAvg) global model on every dataset's holdout.
+"""Score the federated global model on every dataset's holdout.
 
-Run AFTER `flwr run federated` has written checkpoints_infer/federated.pt.
-For each dataset this rebuilds the client's silo-local preprocessing and val
-split exactly as during training (same run config + seed), calibrates label-free
+Run AFTER `flwr run federated` has written checkpoints_infer/federated.pt (the
+final-round global model -- there is no best-round selection). For each dataset
+this rebuilds the client's silo-local preprocessing and val split exactly as
+during training (same run config + seed), loads the global model plus -- for
+personalisation = fedbn/fedrep -- the private parameters that client persisted
+to checkpoints_infer/federated_private/<dataset>.pt, calibrates label-free
 benign-quantile thresholds on that client's validation edges, then streams the
-holdout through the global model. Outputs mirror the other modes:
+holdout through the model. Outputs mirror the other modes:
 results_infer/federated/<dataset>/metrics.json + roc_curve.png +
 threshold_sweep.csv, and results_infer/federated/comparison.csv.
 
@@ -22,12 +25,18 @@ FEDERATED_DIR = Path(__file__).resolve().parent
 if str(FEDERATED_DIR) not in sys.path:
     sys.path.insert(0, str(FEDERATED_DIR))
 
-from fedgnn.task import CLIENT_DATASETS, REPO_ROOT, build_model, load_client_data
+from fedgnn.task import (
+    CLIENT_DATASETS,
+    REPO_ROOT,
+    build_model,
+    load_client_data,
+    private_state_path,
+)
 
 import pandas as pd
 import torch
 
-from train_and_infer import (
+from train_and_inferv2 import (
     DATASETS,
     calibrate_thresholds,
     evaluate_holdout,
@@ -62,7 +71,11 @@ def main():
 
     ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     cfg = ckpt["run_config"]
-    mode = ckpt.get("mode", "federated_fedavg")
+    personalisation = ckpt["personalisation"]
+    # e.g. federated_fedavg, federated_fedprox_fedbn, federated_fedavg_fedrep_secagg
+    mode = "_".join(["federated", ckpt["shared_weight"]]
+                    + ([personalisation] if personalisation != "na" else [])
+                    + (["secagg"] if ckpt["secagg"] else []))
 
     dataset_names = CLIENT_DATASETS if args.datasets == "all" else \
         [d.strip() for d in args.datasets.split(",")]
@@ -82,8 +95,8 @@ def main():
 
     logger = setup_logger(FEDERATED_NAME, log_dir / f"{FEDERATED_NAME}.log")
     logger.info(f"===== federated evaluation: checkpoint={args.checkpoint} "
-                f"(best_round={ckpt['best_round']}/{ckpt['rounds_trained']}, "
-                f"best_val_mse={ckpt['best_val_mse']:.6f}) device={device} =====")
+                f"(mode={mode}, rounds_trained={ckpt['rounds_trained']}, "
+                f"train_time={ckpt['train_time_sec']:.1f}s) device={device} =====")
 
     # evaluate_holdout reads the streaming/window settings off an args-style object
     eval_args = argparse.Namespace(
@@ -109,16 +122,20 @@ def main():
         data = load_client_data(name, cfg)
 
         model = build_model(cfg, data["in_channels"], data["edge_attr_dim"], device)
-        if mode == "federated_fedrep":
-            # shared body (encoder) + this client's private head (decoder + global-edge)
-            model.load_state_dict(ckpt["body_state_dict"], strict=False)
-            head_sd = ckpt["head_state_dicts"].get(name)
-            if head_sd is None:
-                raise KeyError(f"no FedRep head saved for {name}; "
-                               f"have {list(ckpt['head_state_dicts'])}")
-            model.load_state_dict(head_sd, strict=False)
-        else:
-            model.load_state_dict(ckpt["model_state_dict"])
+        # global model = the exchanged/aggregated subset (strict=False: for
+        # fedbn/fedrep the private keys are not in the checkpoint by design)
+        model.load_state_dict(ckpt["model_state_dict"], strict=False)
+        if personalisation != "na":
+            # pair it with the private parameters this client persisted during
+            # training (BN stats for fedbn; decoder + global-edge head for fedrep)
+            priv_path = private_state_path(name)
+            if not priv_path.exists():
+                raise FileNotFoundError(
+                    f"{priv_path} not found: personalisation={personalisation!r} needs "
+                    f"the private parameters {name}'s client saved during training")
+            model.load_state_dict(
+                torch.load(priv_path, map_location="cpu", weights_only=True),
+                strict=False)
 
         # thresholds are per client: each silo's scaler gives it its own error scale
         calib_thresholds, n_calib_edges = calibrate_thresholds(
@@ -134,12 +151,13 @@ def main():
         metrics.update({
             "dataset": name,
             "mode": mode,
+            "shared_weight": ckpt["shared_weight"],
+            "personalisation": personalisation,
+            "secagg": ckpt["secagg"],
             "trained_on": CLIENT_DATASETS,
             "edge_columns": cfg["edge-columns"],
             "log1p_columns": cfg["log1p-columns"],
-            "best_round": ckpt["best_round"],
             "rounds_trained": ckpt["rounds_trained"],
-            "best_val_mse": ckpt["best_val_mse"],  # weighted mean across clients
             "train_time_sec": ckpt["train_time_sec"],
             "n_calib_edges": n_calib_edges,
             "eval_time_sec": time.time() - t_start,
@@ -157,7 +175,8 @@ def main():
 
     if summary_rows:
         cols = ["dataset", "auc_roc", "pr_auc", "precision", "recall", "f1", "fpr",
-                "threshold", "n_eval_edges", "best_round", "train_time_sec", "infer_time_sec"]
+                "threshold", "n_eval_edges", "rounds_trained", "train_time_sec",
+                "infer_time_sec"]
         summary_df = pd.DataFrame(summary_rows)
         summary_df = summary_df[[c for c in cols if c in summary_df.columns]]
         summary_path = out_dir / "comparison.csv"

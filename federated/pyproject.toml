@@ -30,24 +30,69 @@ serverapp = "fedgnn.server_app:app"
 clientapp = "fedgnn.client_app:app"
 
 [tool.flwr.app.config]
-# aggregation strategy: "fedavg" (one global model) or "fedrep" (shared encoder body
-# aggregated across clients + a private per-client head = decoder + global-edge
-# embedding, the federated analogue of --personalised-frozen)
-strategy = "fedavg"
-# number of communication rounds (edit to change how long training runs)
+# how the shared weights are learned:
+#   "fedavg"  -- plain weighted averaging of client updates
+#   "fedprox" -- same aggregation, but every client adds the proximal term
+#                (proximal-mu/2)*||w - w_global||^2 to its local loss
+shared-weight = "fedavg"
+# FedProx proximal term strength (only used when shared-weight = "fedprox")
+proximal-mu = 0.01
+# which part of the model stays private on each client (never aggregated):
+#   "na"     -- nothing; one fully-shared global model
+#   "fedbn"  -- BatchNorm parameters + running stats stay local (FedBN)
+#   "fedrep" -- decoder + global-edge-embedding head stays local; only the encoder
+#               is aggregated. Each round alternates: train head (body frozen),
+#               then train body (head frozen), local-epochs each. (FedRep)
+personalisation = "na"
+# number of communication rounds; training ALWAYS runs the full budget (no early
+# stopping / best-round selection -- the final-round model is saved)
 num-server-rounds = 150
-# FedRep only -- local epochs PER ROUND on each client (ignored by fedavg):
-#   head: freeze the body, train the head to convergence (fedrep-head-epochs is the
-#         epoch CAP; the head early-stops per round on the client's local val split
-#         after fedrep-head-patience epochs without improvement, 0 = run full cap)
-#   body: freeze the head, take a few steps on the shared encoder
-fedrep-head-epochs = 20
-fedrep-head-patience = 3
-fedrep-body-epochs = 1
-# rounds without weighted-mean val_mse improvement before stopping (0 = disabled);
-# the best-round weights are restored either way
-patience = 10
+# local epochs per round on every client (fedrep runs this many per phase)
+local-epochs = 1
+# --- differential privacy ------------------------------------------------------
+# dp-mode = "off" | "central" | "local"
+#   "central" -- client-level central DP: every client L2-clips its own update to
+#                dp-clipping-norm (fixedclipping_mod), the SERVER adds Gaussian
+#                noise (std = sigma*C/n) to the aggregate. Composes with secagg.
+#   "local"   -- local DP: every client clips AND noises its own update before it
+#                leaves the machine (LocalDpMod); no trust in the server.
+dp-mode = "off"
+# noise multiplier sigma: per-update noise std = sigma * dp-clipping-norm. The
+# single swept axis of the privacy-utility study for BOTH dp modes (for "local"
+# the per-round epsilon is derived from sigma via the Gaussian mechanism, so
+# central and local runs at the same sigma are matched in per-client epsilon).
+# epsilon is computed post-hoc by an accountant from (sigma, dp-delta, rounds).
+dp-noise-multiplier = 1.0
+# L2 norm bound C on each client's exchanged update. Calibrated 2026-07-13 via
+# sweep_dp_clip.sh (natural update norms: medians 0.05-0.14; C=0.03 was the most
+# consistent across all 4 datasets at sigma=1; C>=1 diverges). Frozen -- never
+# swept in the privacy studies. NOTE: unrelated to SecAgg+ clipping-range below.
+dp-clipping-norm = 0.03
+# DP failure probability delta: fixed by convention (<< 1/n_records), never swept
+dp-delta = 1e-5
+# log the pre-clip L2 norm of every client update as an extra fit metric
+# ("update_norm/<dataset>" in history.json) -- used to calibrate dp-clipping-norm
+dp-log-norms = false
+# --- secure aggregation (SecAgg+) ---------------------------------------------
+# secagg = true wraps every fit round in Flower's SecAgg+ protocol: the server
+# only ever sees the masked SUM of client updates, never an individual update.
+secagg = false
+# SecAgg+ clips every exchanged value to [-clipping-range, clipping-range] before
+# quantising; raise it if weights/BN running stats exceed this range
+clipping-range = 8.0
+# each client's secret key is split into num-shares Shamir shares; any
+# reconstruction-threshold of them recover it (must be <= num-shares <= #clients)
+secagg-num-shares = 4
+secagg-reconstruction-threshold = 3
+# quantisation grid for the masked integers, and the max aggregation weight a
+# client may report (num-examples; with client-weight="equal" this is just 1)
+secagg-quantization-range = 4194304
+secagg-max-weight = 1000.0
 round-timeout = 7200.0
+# aggregation weighting across the 4 dataset-clients: "equal" (every dataset has the
+# same pull on the shared model, so the largest dataset does not dominate) or
+# "examples" (classic FedAvg: proportional to each client's training window count)
+client-weight = "equal"
 # training hyperparameters (mirror train_and_infer.py defaults)
 lr = 0.0001
 weight-decay = 0.0

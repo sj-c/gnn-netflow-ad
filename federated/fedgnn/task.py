@@ -119,25 +119,65 @@ def build_model(cfg, in_channels, edge_attr_dim, device):
     return GAEWithGlobalEdge(encoder, decoder, global_edge_embedding).to(device)
 
 
-# --- FedRep body/head split ------------------------------------------------
-# FedRep = a shared representation (the "body", aggregated across clients via
-# FedAvg) + a private per-client "head" (never aggregated). We use exactly the
-# same split as train_and_inferv2.py's --personalised-frozen: the encoder is the
-# shared representation; the decoder + global-edge embedding are the head. Both
-# helpers return an ordered state-dict subset; load them back with
-# `model.load_state_dict(subset, strict=False)` (loads only the matching keys,
-# leaving the other half untouched).
-BODY_PREFIX = "encoder."
+# --- shared/private parameter split ------------------------------------------
+# The personalisation mode decides which state-dict entries cross the wire and
+# get aggregated ("exchanged") and which stay on the client ("private"):
+#
+#   "na"     -- everything is exchanged (one fully-shared global model).
+#   "fedbn"  -- FedBN: BatchNorm parameters AND running stats stay local; every
+#               client keeps its own normalisation statistics.
+#   "fedrep" -- FedRep: only the encoder (the shared representation) is
+#               exchanged; the head (decoder + global-edge embedding) is private,
+#               exactly the --personalised-frozen split in train_and_inferv2.py.
+#
+# `num_batches_tracked` buffers are NEVER exchanged: they are int64 counters, and
+# SecAgg+ clips every exchanged value to [-clipping_range, clipping_range] before
+# quantising, which would corrupt them. (PyTorch only consults them when BN
+# momentum is None; ours uses the default momentum, so keeping them local is
+# harmless.)
+#
+# Every client derives the identical, deterministically-ordered key list from the
+# same run config, so the flat ndarray list exchanged with the server is uniform
+# across clients -- the property SecAgg+ masking relies on.
+ENCODER_PREFIX = "encoder."
+
+PERSONALISATION_MODES = ("na", "fedbn", "fedrep")
 
 
-def body_state_dict(model):
-    """The shared-representation (encoder) parameters -- FedRep aggregates these."""
-    return {k: v for k, v in model.state_dict().items() if k.startswith(BODY_PREFIX)}
+def _batchnorm_prefixes(model):
+    """State-dict key prefixes of every BatchNorm module in the model."""
+    return tuple(
+        f"{name}." for name, m in model.named_modules()
+        if isinstance(m, torch.nn.modules.batchnorm._BatchNorm)
+    )
 
 
-def head_state_dict(model):
-    """The private per-client head (decoder + global-edge embedding) -- kept local."""
-    return {k: v for k, v in model.state_dict().items() if not k.startswith(BODY_PREFIX)}
+def exchanged_keys(model, personalisation):
+    """Ordered state-dict keys that are sent to / received from the server."""
+    if personalisation not in PERSONALISATION_MODES:
+        raise ValueError(f"unknown personalisation {personalisation!r}; "
+                         f"choices: {PERSONALISATION_MODES}")
+    keys = [k for k in model.state_dict() if not k.endswith("num_batches_tracked")]
+    if personalisation == "fedbn":
+        bn = _batchnorm_prefixes(model)
+        keys = [k for k in keys if not k.startswith(bn)]
+    elif personalisation == "fedrep":
+        keys = [k for k in keys if k.startswith(ENCODER_PREFIX)]
+    return keys
+
+
+def private_keys(model, personalisation):
+    """State-dict keys that never leave the client (complement of exchanged_keys)."""
+    shared = set(exchanged_keys(model, personalisation))
+    return [k for k in model.state_dict() if k not in shared]
+
+
+def private_state_path(dataset_name):
+    """Where a client persists its private (non-aggregated) parameters each round
+    so evaluate_federated.py can pair them with the final global model. In the
+    simulation all clients share this filesystem; in a real deployment this file
+    simply stays on the client, which is where per-client evaluation happens."""
+    return REPO_ROOT / "checkpoints_infer" / "federated_private" / f"{dataset_name}.pt"
 
 
 def load_client_data(dataset_name, cfg):

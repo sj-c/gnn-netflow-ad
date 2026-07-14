@@ -87,41 +87,81 @@ each dataset's privacy is preserved by construction.
 ## 3.4.4 What Happens in Each Round
 
 Federated training proceeds in repeated **communication rounds**. A round is one
-full loop of "send out → train locally → send back → combine". Our experiments run a
-fixed budget of **150 rounds** (`num-server-rounds = 150`); training always runs the
-full budget and the model from the final round is the one we keep.
+complete loop in which the shared model is sent out, improved locally by every
+client, protected, and combined back into a single, better shared model. The
+accompanying diagram (Figure 3.X) traces a full round from top to bottom as **six
+numbered steps**. The steps fall into three natural groups: the model is
+**distributed** (Step 1), it is **improved locally** (Step 2), and then the clients'
+work is **protected and combined** on the way back to the server (Steps 3–6). We walk
+through each step below; the mechanisms introduced in Steps 3–6 are the subject of
+the later sub-sections, so here we only describe *where in the round each one acts*.
 
-A single round consists of four steps (this is the process illustrated in the
-accompanying diagram):
+**Step 1 — The server hands out the model *(Broadcast, server → clients).*** The round
+begins at the central server, which holds the single, authoritative shared model. It
+sends a copy of the current model's parameters to every client. Each client is one
+organisation with its own private data; in our study the four clients are the four
+NetFlow datasets — **NF-BoT-IoT**, **NF-UNSW-NB15**, **NF-ToN-IoT** and
+**NF-CICIDS2018**.
 
-1. **Broadcast (server → clients).** The server takes the current global model and
-   sends a copy of its parameters to every client.
+**Step 2 — Each client trains the model on its own private data *(Local training).***
+Every client loads the received model and trains it on *its own* data for a small
+number of **local epochs** (in our default setup, one pass over the client's benign
+training traffic). The four clients do this **in parallel**, and each improves the
+model in the direction that best fits its own network — so the four resulting models
+differ, because the underlying attacks and traffic differ. Critically, **the raw data
+never leaves the client's own computer**; only the improved model parameters will be
+sent onward.
 
-2. **Local training (on each client).** Each client loads the global parameters into
-   its own copy of the model and trains it on its *private* data for a small number
-   of **local epochs** (in our default setup, one epoch per round — one pass over the
-   client's benign training traffic). During this step every client improves the model
-   in the direction that best fits *its own* data. Crucially, the four clients pull in
-   slightly different directions, because their networks and attacks differ.
+**Step 3 — Each client keeps its own scaling private *(Personalisation — "Federated
+Batch Normalisation", FedBN).*** Before reporting back, each client *holds back* the
+small part of the model that is tuned to the scale and statistics of its own data,
+and shares only the rest. This is what lets one shared model still cope with four
+very different networks. This private-versus-shared split — and the alternatives to
+it — is detailed in **Section 3.4.7**. (The diagram illustrates the FedBN option; NA
+and FedRep are variations on *what* is held back.)
 
-3. **Report (clients → server).** Each client sends its newly trained parameters (or,
-   under some privacy settings, a masked or noised version of them) back to the
-   server. **The data never moves — only the parameters do.**
+**Step 4 — Each client blurs its update *(Differential Privacy, DP).*** Next, each
+client optionally protects its update against being reverse-engineered: it trims the
+update down to a maximum size and adds a small amount of random noise, so that no
+single record in its data could later be traced back from the shared model. The
+mechanism, and the privacy-versus-accuracy trade-off it entails, is covered in
+**Section 3.4.9**.
 
-4. **Aggregation (on the server).** The server combines the four clients' parameters
-   into one new global model (described in Section 3.4.6). This combined model becomes
-   the starting point for the next round.
+**Step 5 — The server learns the total, but not any single update *(Secure
+Aggregation, SecAgg+).*** Before sending, each client adds a **secret random number**
+(a *mask*) to its update. These masks are arranged in pairs across the clients so that
+they **cancel out when all the updates are added together**. The server therefore
+receives the correct combined total, yet any one client's update, seen on its own,
+looks like meaningless random values — so the server can never read an individual
+client's contribution. This protocol is explained in **Section 3.4.8**.
 
-After 150 repetitions of this loop, the shared global model has been shaped by all
-four datasets at once, yet no dataset ever left its owner's machine.
+**Step 6 — The server combines everyone's work *(Aggregation — "Federated Averaging",
+FedAvg).*** Finally the server adds up the four clients' (masked) updates and
+**averages** them into one new, improved shared model — so the model learns from
+everyone's data without ever seeing it. Thanks to Step 5, the secret masks cancel out
+exactly here, so the server only ever obtains the combined total, never a single
+client's update. How the averaging is done — and the FedProx alternative — is covered
+in **Section 3.4.6**.
+
+**Then repeat.** The new shared model becomes the starting point for the next round,
+and Steps 1–6 run again. Training always runs the **full fixed budget of rounds**
+(`num-server-rounds`); there is no early stopping. After the final round, the shared
+model has been shaped by all four datasets at once, yet no dataset ever left its
+owner's machine.
 
 > **A note on model selection.** Unlike our centralised training, the federated
 > pipeline uses **no early stopping and no "best round" selection** — it simply runs
-> all 150 rounds and saves the final model. This is a deliberate simplification: any
-> form of "best round" selection would require a validation signal that peeks across
-> clients, which complicates the privacy story. The trained global model is then
-> evaluated separately, offline, on each dataset's held-out test data
-> (`evaluate_federated.py`).
+> the full round budget and saves the final model. This is a deliberate
+> simplification: any form of "best round" selection would require a validation
+> signal that peeks across clients, which complicates the privacy story. The trained
+> global model is then evaluated separately, offline, on each dataset's held-out test
+> data (`evaluate_federated.py`).
+>
+> **Note on the diagram.** Figure 3.X shows the *full* pipeline with every protection
+> switched on (FedBN + DP + SecAgg+ + FedAvg). Steps 3, 4 and 5 are **optional
+> layers**: each can be turned on or off independently, which is exactly what the
+> experiments in this study vary. A plain FedAvg run, for instance, would skip
+> Steps 3–5 and go straight from local training (Step 2) to averaging (Step 6).
 
 ---
 

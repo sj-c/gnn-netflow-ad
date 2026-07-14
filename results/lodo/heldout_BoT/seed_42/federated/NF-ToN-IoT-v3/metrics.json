@@ -1,0 +1,33 @@
+{
+  "auc_roc": 0.7822270345097068,
+  "pr_auc": 0.7603402652745045,
+  "threshold": 1.020200490951538,
+  "precision": 0.8076279878187977,
+  "recall": 0.6932115608620645,
+  "f1": 0.7460585090842444,
+  "fpr": 0.1847335757788639,
+  "tpr": 0.6932115608620645,
+  "tp": 7365795,
+  "fp": 1754487,
+  "tn": 7742904,
+  "fn": 3259814,
+  "n_eval_edges": 20123000,
+  "calibrated_thresholds": [],
+  "infer_time_sec": 93.38869071006775,
+  "dataset": "NF-ToN-IoT-v3",
+  "mode": "federated_fedavg",
+  "shared_weight": "fedavg",
+  "personalisation": "na",
+  "secagg": false,
+  "trained_on": [
+    "NF-UNSW-NB15-v3",
+    "NF-ToN-IoT-v3",
+    "NF-CICIDS2018-v3"
+  ],
+  "edge_columns": "baseline",
+  "log1p_columns": "baseline",
+  "rounds_trained": 50,
+  "train_time_sec": 141.51047897338867,
+  "adabn_batches": null,
+  "eval_time_sec": 101.0660309791565
+}

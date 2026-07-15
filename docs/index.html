@@ -187,6 +187,16 @@
   .method h4 span{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
   .method p{margin:8px 0 0;font-size:14.5px;color:var(--ink-2)}
 
+  /* result narrative blocks */
+  .result-block{padding:44px 0;border-top:1px solid var(--line)}
+  .result-block:first-of-type{border-top:none;padding-top:8px}
+  .rb-label{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .rb-num{font-family:"Space Grotesk",sans-serif;font-size:14px;font-weight:600;color:#fff;background:var(--ink);width:30px;height:30px;border-radius:8px;display:inline-grid;place-items:center;letter-spacing:0}
+  .result-block:nth-child(4) .rb-num{background:var(--signal)}
+  .rb-title{font-family:"Space Grotesk",sans-serif;font-size:clamp(22px,3vw,30px);font-weight:600;letter-spacing:-.015em;max-width:22ch;margin:0 0 14px}
+  .rb-text{font-size:16.5px;color:var(--ink-2);max-width:74ch;margin:0}
+  .rb-text b{color:var(--ink);font-weight:600}
+
   /* results table */
   .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);background:var(--card)}
   table{border-collapse:collapse;width:100%;min-width:560px;font-size:15px}
@@ -227,17 +237,13 @@
   .verdict.free{color:#0a6b45;background:rgba(18,163,107,.12)}
   .verdict.costly{color:var(--anomaly-deep);background:rgba(255,107,74,.12)}
 
-  /* deploy */
-  .deploy-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-  @media(max-width:820px){.deploy-grid{grid-template-columns:1fr}}
-  .codeblock{background:#0c1226;border:1px solid #1d2846;border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
-  .codeblock .cb-head{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #1d2846}
-  .codeblock .cb-head .dot{width:11px;height:11px;border-radius:50%}
-  .codeblock .cb-head .t{font-family:"IBM Plex Mono",monospace;font-size:12px;color:#8ea0c6;margin-left:6px}
-  .codeblock pre{margin:0;padding:18px 18px;overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:13px;line-height:1.75;color:#cdd7f0}
-  .codeblock .c{color:#5f7099}
-  .codeblock .g{color:var(--signal-bright)}
-  .codeblock .y{color:#ffcf8b}
+  /* takeaways */
+  .takeaways{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+  @media(max-width:720px){.takeaways{grid-template-columns:1fr}}
+  .tk{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 26px 28px;box-shadow:var(--shadow);position:relative}
+  .tk-n{font-family:"Space Grotesk",sans-serif;font-size:13px;font-weight:600;color:var(--signal);letter-spacing:.05em;margin-bottom:14px}
+  .tk h3{font-size:19px;margin:0 0 10px}
+  .tk p{font-size:15px;color:var(--ink-2);margin:0}
 
   .callout{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--anomaly);border-radius:12px;padding:18px 22px;margin-top:26px;font-size:15px;color:var(--ink-2)}
   .callout b{color:var(--ink)}
@@ -264,10 +270,10 @@
     <div class="brand">gnn-netflow-ad<span>.</span></div>
     <div class="navlinks">
       <a href="#problem">Problem</a>
-      <a href="#pipeline">Model</a>
+      <a href="#pipeline">Solution</a>
       <a href="#federated">Federated</a>
       <a href="#results">Results</a>
-      <a href="#run">Run it</a>
+      <a href="#takeaways">Takeaways</a>
       <a class="gh" href="https://github.com/sj-c/gnn-netflow-ad" target="_blank" rel="noopener">GitHub ↗</a>
     </div>
   </div>
@@ -286,8 +292,8 @@
       four organisations train it <em>together</em>, by federated learning, without ever sharing raw data.
     </p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="#pipeline">How it works →</a>
-      <a class="btn btn-ghost" href="https://github.com/sj-c/gnn-netflow-ad" target="_blank" rel="noopener">View the code</a>
+      <a class="btn btn-primary" href="#pipeline">See the solution →</a>
+      <a class="btn btn-ghost" href="#results">Jump to results</a>
     </div>
   </div>
   <div class="metrics">
@@ -463,50 +469,96 @@
 <section id="results">
   <div class="wrap">
     <div class="section-head">
-      <div class="eyebrow">Results</div>
-      <h2>Federation helps — when adaptation stays local.</h2>
-      <p class="lede">Macro-averaged over all four datasets, the strongest configuration pairs FedAvg with FedBN:
-        it posts the best ranking and F1 <em>and</em> the lowest false-positive rate. Sharing everything, or
-        pooling data centrally, was consistently less reliable.</p>
+      <div class="eyebrow">Results · the argument in four steps</div>
+      <h2>Why federation, and why keep part of the model local.</h2>
+      <p class="lede">The results build a case. A model trained on one network doesn't transfer. Naively pooling
+        everyone's data makes it worse. Federating <em>does</em> help — but only once each client keeps its
+        own normalisation. And even then, a brand-new network still needs a local touch.</p>
     </div>
 
-    <div class="tablewrap">
-      <table>
-        <thead>
-          <tr><th>Aggregation / personalisation</th><th style="text-align:right">ROC-AUC ↑</th><th style="text-align:right">F1 ↑</th><th style="text-align:right">FPR ↓</th></tr>
-        </thead>
-        <tbody>
-          <tr class="best"><td>FedAvg&nbsp;/&nbsp;FedBN<span class="best-pill">best</span></td><td class="num">0.852</td><td class="num">0.831</td><td class="num">0.088</td></tr>
-          <tr><td>FedProx&nbsp;/&nbsp;FedBN</td><td class="num">0.848</td><td class="num">0.817</td><td class="num">0.095</td></tr>
-          <tr><td>FedProx&nbsp;/&nbsp;FedRep</td><td class="num">0.837</td><td class="num">0.796</td><td class="num">0.148</td></tr>
-          <tr><td>FedAvg&nbsp;/&nbsp;FedRep</td><td class="num">0.833</td><td class="num">0.804</td><td class="num">0.148</td></tr>
-          <tr><td>FedAvg&nbsp;/&nbsp;none</td><td class="num">0.818</td><td class="num">0.747</td><td class="num">0.140</td></tr>
-          <tr><td>FedProx&nbsp;/&nbsp;none</td><td class="num">0.773</td><td class="num">0.733</td><td class="num">0.203</td></tr>
-        </tbody>
-      </table>
+    <!-- step 1: local baselines -->
+    <div class="result-block">
+      <div class="rb-label"><span class="rb-num">01</span> The domain gap</div>
+      <h3 class="rb-title">One model per network is strong at home, weak everywhere else.</h3>
+      <p class="rb-text">Each dataset-specific detector separates attacks well on its own traffic — within-dataset
+        ranking runs from 0.722 on BoT-IoT to 0.946 on CICIDS. Point the same model at another network and
+        performance falls off a cliff: cross-dataset ROC-AUC averages just 0.45–0.69, several barely above a
+        coin flip. The model learned each environment's quirks, not a universal notion of "normal traffic."</p>
+      <div class="two" style="margin-top:28px;align-items:stretch">
+        <figure class="fig">
+          <div class="fig-body"><img src="assets/within-vs-cross.png" alt="Bar chart: for every dataset, detection quality tested on the same network is far higher than tested on unfamiliar networks, several of the latter near the coin-flip line."></div>
+          <figcaption><b>Figure 3</b><span>Tested at home vs on unfamiliar networks — the gap is the domain shift.</span></figcaption>
+        </figure>
+        <figure class="fig">
+          <div class="fig-body"><img src="assets/recall-fpr.png" alt="Bar chart of attacks caught versus false alarms per dataset; BoT-IoT catches nearly all attacks but at a very high false-alarm rate."></div>
+          <figcaption><b>Figure 4</b><span>Attacks caught vs false alarms — BoT-IoT's high recall hides a 41% false-alarm rate.</span></figcaption>
+        </figure>
+      </div>
     </div>
-    <p class="mono" style="font-size:12.5px;color:var(--muted);margin-top:14px">Macro-average across NF-CSE-CIC-IDS2018, NF-UNSW-NB15, NF-BoT-IoT, NF-ToN-IoT. Threshold set by Youden's J on the ROC curve.</p>
 
-    <div class="two" style="margin-top:56px;align-items:stretch">
-      <figure class="fig">
-        <div class="fig-body"><img src="assets/within-vs-cross.png" alt="Bar chart: within-dataset detection quality is far higher than cross-dataset for every dataset-specific model, several near coin-flip when transferred."></div>
-        <figcaption><b>Figure 3</b><span>Local models are strong at home, weak abroad — the domain gap.</span></figcaption>
+    <!-- step 2: centralised pooling -->
+    <div class="result-block">
+      <div class="rb-label"><span class="rb-num">02</span> The obvious fix that fails</div>
+      <h3 class="rb-title">Simply pooling all the data makes things worse.</h3>
+      <p class="rb-text">The intuitive answer is to merge every dataset into one big training set. It backfires. A
+        single combined model scores a macro-average ROC-AUC of ~0.734 — <em>below</em> the average of the four
+        local models — and keeps high false-alarm rates on most datasets. This is negative transfer: one shared
+        representation and one shared scaler blur the real differences between networks. Personalising the
+        decoder or the batch-norm helps some clients but no single centralised variant wins everywhere.</p>
+      <figure class="fig fig-wide" style="margin-top:26px">
+        <div class="fig-body"><img src="assets/centralised.png" alt="Ranked bar charts of centralised model variants by detection score and false alarms; the plain combined-with-shared-scaler model is worst, personalised variants better but none dominant."></div>
+        <figcaption><b>Figure 5</b><span>Centralised variants ranked — pooling with a shared scaler is the weakest of all.</span></figcaption>
       </figure>
-      <figure class="fig">
-        <div class="fig-body"><img src="assets/federated-comparison.png" alt="Dot-and-whisker chart ranking federated configurations by average detection score and by false alarms; FedAvg+FedBN leads on both."></div>
-        <figcaption><b>Figure 4</b><span>Federated methods ranked — FedAvg+FedBN leads on score and on false alarms.</span></figcaption>
+    </div>
+
+    <!-- step 3: federated -->
+    <div class="result-block">
+      <div class="rb-label"><span class="rb-num">03</span> The solution that works</div>
+      <h3 class="rb-title">Federate the shared parts, keep normalisation local.</h3>
+      <p class="rb-text">Federated learning shares knowledge without sharing data — and the winning recipe is
+        <b>FedAvg + FedBN</b>: average the network, but let each client keep its own batch-norm to absorb its
+        traffic's scale. It posts the best ranking and F1 <em>and</em> the lowest false-alarm rate. Versus the
+        local baselines it lifts macro ROC-AUC ~2 points and F1 ~7 points while roughly halving false alarms.
+        Sharing <em>everything</em> (no personalisation) is markedly weaker, and FedProx's proximal constraint
+        didn't beat plain FedAvg here.</p>
+
+      <div class="tablewrap" style="margin-top:26px">
+        <table>
+          <thead>
+            <tr><th>Aggregation / personalisation</th><th style="text-align:right">ROC-AUC ↑</th><th style="text-align:right">F1 ↑</th><th style="text-align:right">FPR ↓</th></tr>
+          </thead>
+          <tbody>
+            <tr class="best"><td>FedAvg&nbsp;/&nbsp;FedBN<span class="best-pill">best</span></td><td class="num">0.852</td><td class="num">0.831</td><td class="num">0.088</td></tr>
+            <tr><td>FedProx&nbsp;/&nbsp;FedBN</td><td class="num">0.848</td><td class="num">0.817</td><td class="num">0.095</td></tr>
+            <tr><td>FedProx&nbsp;/&nbsp;FedRep</td><td class="num">0.837</td><td class="num">0.796</td><td class="num">0.148</td></tr>
+            <tr><td>FedAvg&nbsp;/&nbsp;FedRep</td><td class="num">0.833</td><td class="num">0.804</td><td class="num">0.148</td></tr>
+            <tr><td>FedAvg&nbsp;/&nbsp;none</td><td class="num">0.818</td><td class="num">0.747</td><td class="num">0.140</td></tr>
+            <tr><td>FedProx&nbsp;/&nbsp;none</td><td class="num">0.773</td><td class="num">0.733</td><td class="num">0.203</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mono" style="font-size:12.5px;color:var(--muted);margin-top:14px">Macro-average across the four datasets, three seeds. Threshold set by Youden's J on the ROC curve.</p>
+
+      <figure class="fig fig-wide" style="margin-top:34px">
+        <div class="fig-body"><img src="assets/federated-comparison.png" alt="Dot-and-whisker chart ranking federated configurations against the centralised baseline by average detection score and by false alarms; FedAvg+FedBN leads on both, FedProx-plain trails."></div>
+        <figcaption><b>Figure 6</b><span>Every configuration ranked, with run-to-run whiskers — FedAvg+FedBN leads on score and on false alarms.</span></figcaption>
       </figure>
     </div>
 
-    <div class="section-head" style="margin:70px 0 30px">
-      <div class="eyebrow">Cross-dataset generalisation</div>
-      <h3 style="font-size:26px;margin-top:14px">Does it transfer to a network it has never seen?</h3>
-      <p style="color:var(--ink-2);margin-top:12px;max-width:70ch">In a leave-one-dataset-out test, federated exposure to several environments improved held-out ranking for <em>all four</em> datasets versus single-source transfer — biggest gains on CICIDS (+31.6) and UNSW (+22.3). But high false-positive rates on BoT-IoT and CICIDS show the domain gap shrinks, it doesn't close: a new organisation still needs local calibration.</p>
+    <!-- step 4: cross-dataset -->
+    <div class="result-block">
+      <div class="rb-label"><span class="rb-num">04</span> The honest caveat</div>
+      <h3 class="rb-title">It transfers better to unseen networks — but not for free.</h3>
+      <p class="rb-text">In a leave-one-dataset-out test, a model trained on three networks generalises to the
+        held-out fourth better than any single-source transfer — for <em>all four</em> datasets. The jumps are
+        largest on CICIDS (+31.6) and UNSW (+22.3), moving each point toward the same-network benchmark ceiling.
+        But the gap shrinks, it doesn't close: held-out BoT-IoT and CICIDS still fire far too many false alarms.
+        A new organisation joining the federation would still need local calibration before going live.</p>
+      <figure class="fig fig-wide" style="margin-top:26px">
+        <div class="fig-body"><img src="assets/cross-dataset.png" alt="Dumbbell chart: training on three networks beats training on one for every held-out dataset, moving each point closer to the same-network benchmark diamond."></div>
+        <figcaption><b>Figure 7</b><span>Trained on 3 networks vs 1 — a longer arrow means a bigger jump in transfer to a never-seen network.</span></figcaption>
+      </figure>
     </div>
-    <figure class="fig fig-wide">
-      <div class="fig-body"><img src="assets/cross-dataset.png" alt="Dumbbell chart: training on three networks beats training on one for every held-out dataset, moving each point closer to the same-network benchmark ceiling."></div>
-      <figcaption><b>Figure 5</b><span>Trained on 3 networks vs 1 — longer arrow means a bigger jump in transfer to an unseen network.</span></figcaption>
-    </figure>
   </div>
 </section>
 
@@ -535,7 +587,7 @@
 
     <figure class="fig fig-wide">
       <div class="fig-body"><img src="assets/privacy-utility.png" alt="Privacy-utility trade-off curve: AUC-ROC stays near the non-private baseline of 0.838 only at negligible noise (epsilon in the thousands) and collapses toward random as epsilon approaches meaningful single-digit values."></div>
-      <figcaption><b>Figure 6</b><span>An honest negative result: at four clients, meaningful client-level DP (ε ≤ 10) is incompatible with useful detection.</span></figcaption>
+      <figcaption><b>Figure 8</b><span>An honest negative result: at four clients, meaningful client-level DP (ε ≤ 10) is incompatible with useful detection.</span></figcaption>
     </figure>
   </div>
 </section>
@@ -568,41 +620,39 @@
   </div>
 </section>
 
-<!-- ===================== RUN IT ===================== -->
-<section class="alt" id="run">
+<!-- ===================== TAKEAWAYS ===================== -->
+<section class="alt" id="takeaways">
   <div class="wrap">
     <div class="section-head">
-      <div class="eyebrow">Run it</div>
-      <h2>Two ways to train the detector.</h2>
-      <p class="lede">One centralised script trains and evaluates every dataset in a single process; the federated
-        workflow runs one client per dataset over Flower. Full flags and the smoke-test recipe are in the
-        <a href="https://github.com/sj-c/gnn-netflow-ad#readme" style="color:var(--signal)">README</a>.</p>
+      <div class="eyebrow">Takeaways</div>
+      <h2>What the project establishes.</h2>
+      <p class="lede">Federated personalisation can improve NetFlow anomaly detection under non-IID conditions —
+        but it complements client-specific calibration rather than replacing it.</p>
     </div>
-    <div class="deploy-grid">
-      <div class="codeblock">
-        <div class="cb-head"><span class="dot" style="background:#ff5f56"></span><span class="dot" style="background:#ffbd2e"></span><span class="dot" style="background:#27c93f"></span><span class="t">centralised · train_and_inferv2.py</span></div>
-<pre><span class="c"># set up the environment</span>
-conda env create -f environment.yml
-conda activate gnn-netflow-ad
-
-<span class="c"># one model per dataset (default)</span>
-python train_and_inferv2.py
-
-<span class="c"># shared encoder + per-dataset head</span>
-python train_and_inferv2.py <span class="g">--personalised-frozen</span></pre>
+    <div class="takeaways">
+      <div class="tk">
+        <div class="tk-n">01</div>
+        <h3>Behaviour is environment-specific</h3>
+        <p>The graph autoencoder learns useful "normal traffic" within a network, but those representations transfer poorly. NetFlow is strongly local.</p>
       </div>
-      <div class="codeblock">
-        <div class="cb-head"><span class="dot" style="background:#ff5f56"></span><span class="dot" style="background:#ffbd2e"></span><span class="dot" style="background:#27c93f"></span><span class="t">federated · run_federated_gpu.sh</span></div>
-<pre><span class="c"># best config: FedAvg + FedBN + SecAgg+</span>
-./run_federated_gpu.sh \
-  <span class="g">--shared_weight</span>=FedAvg \
-  <span class="g">--personalisation</span>=FedBN \
-  <span class="g">--secagg</span>=true <span class="g">--clip</span>=8.0 \
-  <span class="g">--rounds</span>=150 <span class="g">--seeds</span>=<span class="y">"42 43 44"</span></pre>
+      <div class="tk">
+        <div class="tk-n">02</div>
+        <h3>Share, don't pool — and keep BN local</h3>
+        <p>Naive pooling and full parameter sharing underperform. FedAvg + FedBN gives the best overall balance: 0.852 ROC-AUC, 0.831 F1, 0.088 FPR.</p>
+      </div>
+      <div class="tk">
+        <div class="tk-n">03</div>
+        <h3>Generalisation improves, gap remains</h3>
+        <p>Multi-client training beats single-source transfer to every unseen dataset, yet held-out false-alarm rates show local calibration is still needed.</p>
+      </div>
+      <div class="tk">
+        <div class="tk-n">04</div>
+        <h3>Privacy depends on the threat</h3>
+        <p>SecAgg+ hides individual updates for free. But at four clients, formal client-level differential privacy costs too much utility to be practical.</p>
       </div>
     </div>
-    <div class="cta-row" style="margin-top:30px">
-      <a class="btn btn-primary" style="background:var(--signal);color:#fff" href="https://github.com/sj-c/gnn-netflow-ad" target="_blank" rel="noopener">Open the repository ↗</a>
+    <div class="cta-row" style="margin-top:38px">
+      <a class="btn btn-primary" style="background:var(--signal);color:#fff" href="https://github.com/sj-c/gnn-netflow-ad" target="_blank" rel="noopener">Explore the code on GitHub ↗</a>
       <a class="btn btn-ghost" style="color:var(--ink);border-color:var(--line)" href="https://github.com/sj-c/gnn-netflow-ad/blob/main/federated/README.md" target="_blank" rel="noopener">Federated protocol writeup</a>
     </div>
   </div>
@@ -621,7 +671,7 @@ python train_and_inferv2.py <span class="g">--personalised-frozen</span></pre>
       <a href="#federated">Federated learning</a>
       <a href="#results">Results</a>
       <a href="#privacy">Privacy</a>
-      <a href="#run">Run it</a>
+      <a href="#takeaways">Takeaways</a>
     </div>
     <div>
       <h4>Links</h4>

@@ -13,12 +13,6 @@ Two ways to train it:
 - **Federated** (`run_federated_gpu.sh` + `federated/`) — Flower workflow API,
   one client per dataset, optional SecAgg+ secure aggregation and central DP.
 
-Both share the same model/preprocessing code and the same 4 NetFlow v3 datasets.
-
-> `src/scripts.py` and `src/stages/*` are an unrelated legacy Morpheus/RAPIDS
-> real-time serving pipeline (needs `cudf`/`cupy`/`morpheus`/`mrc`). Nothing in
-> this README touches them, and `environment.yml` does not install them.
-
 ## Setup
 
 ```bash
@@ -171,9 +165,3 @@ python federated/evaluate_federated.py --resume
 - `run_federated_gpu.sh` kills any leftover Flower/Ray processes and clears `checkpoints_infer/federated_private/` before each seed to guarantee a cold start (Ray actors otherwise cache the first seed's data split/model across "different" seeds).
 - If a run dies mid-simulation the script fails loudly (missing `checkpoints_infer/federated.pt`) rather than silently evaluating a stale checkpoint.
 - `FLWR_HOME` is relocated to `/tmp/flwr_$USER` (local disk) — Flower's SQLite state DB is unreliable on NFS.
-
-## Troubleshooting
-
-- **`import src` fails inside the federated app**: `flwr run` copies the app into `~/.flwr/apps/<hash>/`, isolated from the repo. `run_federated_gpu.sh` handles this automatically (writes `~/.flwr/gnn_repo_root`); if calling `flwr run` directly outside the script, make sure that handshake file exists first (source the relevant section of `run_federated_gpu.sh`, or run the script once).
-- **A federated run hangs or a fresh `flwr run` immediately fails in round 1**: an orphaned `flower-superlink`/Ray process from a previous crashed run is likely holding the GPU or the control port. `run_federated_gpu.sh` already does this cleanup before each seed; if running `flwr run` manually, kill `flower-superlink|flower-superexec|flwr-simulation|flwr-serverapp|flwr-clientapp|raylet|gcs_server|plasma_store|ray::` and remove `/tmp/ray/session_*`.
-- **`torch_geometric` prints `UserWarning`s about `pyg-lib`/`torch-scatter`/etc. failing to load**: expected with the pinned `environment.yml` (those optional compiled extras aren't installed) — PyG falls back to pure-PyTorch ops, results are unaffected.

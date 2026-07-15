@@ -252,6 +252,19 @@ def metrics_from_scores(all_labels, all_preds, roc_plot_path=None):
     print(f"Unique values: {unique_values}")
     print(f"Counts: {counts}")
 
+    # A diverged model can emit inf/nan reconstruction
+    # errors, which sklearn's roc_curve/average_precision_score refuse. Map them
+    # to the largest finite score ("maximally anomalous") so a bad config records
+    # bad metrics instead of crashing a sweep. Ranking-wise this ties all broken
+    # scores at the top, which is the honest reading of an inf error.
+    finite_mask = np.isfinite(all_preds)
+    if not finite_mask.all():
+        n_bad = int(all_preds.size - finite_mask.sum())
+        cap = float(all_preds[finite_mask].max()) if finite_mask.any() else 1.0
+        print(f"WARNING: {n_bad}/{all_preds.size} non-finite anomaly scores; "
+              f"replacing with max finite score {cap:.4g}")
+        all_preds = np.nan_to_num(all_preds, nan=cap, posinf=cap, neginf=0.0)
+
     fpr, tpr, thresholds = roc_curve(all_labels, all_preds)
     roc_auc = auc(fpr, tpr)
     pr_auc = average_precision_score(all_labels, all_preds)

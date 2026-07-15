@@ -1,5 +1,0 @@
-dataset,auc_roc_mean,auc_roc_std,pr_auc_mean,pr_auc_std,precision_mean,precision_std,recall_mean,recall_std,f1_mean,f1_std,fpr_mean,fpr_std,n_seeds
-NF-BoT-IoT-v3,0.6156,,0.9988,,0.9995,,0.9615,,0.9802,,0.622,,1
-NF-CICIDS2018-v3,0.7689,,0.212,,0.2809,,0.8939,,0.4275,,0.3097,,1
-NF-ToN-IoT-v3,0.7543,,0.7262,,0.7514,,0.6508,,0.6975,,0.2409,,1
-NF-UNSW-NB15-v3,0.7283,,0.3331,,0.3522,,0.6193,,0.4491,,0.1132,,1

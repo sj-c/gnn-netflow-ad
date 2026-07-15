@@ -49,30 +49,30 @@ personalisation = "na"
 num-server-rounds = 150
 # local epochs per round on every client (fedrep runs this many per phase)
 local-epochs = 1
-# --- differential privacy ------------------------------------------------------
-# dp-mode = "off" | "central" | "local"
-#   "central" -- client-level central DP: every client L2-clips its own update to
-#                dp-clipping-norm (fixedclipping_mod), the SERVER adds Gaussian
-#                noise (std = sigma*C/n) to the aggregate. Composes with secagg.
-#   "local"   -- local DP: every client clips AND noises its own update before it
-#                leaves the machine (LocalDpMod); no trust in the server.
-dp-mode = "off"
-# noise multiplier sigma: per-update noise std = sigma * dp-clipping-norm. The
-# single swept axis of the privacy-utility study for BOTH dp modes (for "local"
-# the per-round epsilon is derived from sigma via the Gaussian mechanism, so
-# central and local runs at the same sigma are matched in per-client epsilon).
-# epsilon is computed post-hoc by an accountant from (sigma, dp-delta, rounds).
+# --- central differential privacy (server-side fixed clipping) -----------------
+# central-dp = true wraps the strategy in Flower's
+# DifferentialPrivacyServerSideFixedClipping: each round the SERVER L2-clips every
+# client's model update (new params - current global params) to dp-clipping-norm,
+# aggregates the clipped updates, then adds Gaussian noise with per-element
+# std = dp-noise-multiplier * dp-clipping-norm / n_clients to the aggregate.
+# Mutually exclusive with secagg (server-side clipping needs the individual
+# updates; SecAgg+ only reveals the sum) and requires client-weight = "equal"
+# (the noise std is calibrated for an unweighted mean).
+central-dp = false
+# noise multiplier sigma; per-round client-level (epsilon, delta) follows from
+# (sigma, rounds) via a Gaussian-mechanism accountant, computed post-hoc
 dp-noise-multiplier = 1.0
-# L2 norm bound C on each client's exchanged update. Calibrated 2026-07-13 via
-# sweep_dp_clip.sh (natural update norms: medians 0.05-0.14; C=0.03 was the most
-# consistent across all 4 datasets at sigma=1; C>=1 diverges). Frozen -- never
-# swept in the privacy studies. NOTE: unrelated to SecAgg+ clipping-range below.
-dp-clipping-norm = 0.03
-# DP failure probability delta: fixed by convention (<< 1/n_records), never swept
-dp-delta = 1e-5
-# log the pre-clip L2 norm of every client update as an extra fit metric
-# ("update_norm/<dataset>" in history.json) -- used to calibrate dp-clipping-norm
-dp-log-norms = false
+# L2 bound C on each client's per-round update. Calibrated 2026-07-15 from
+# 20-round runs with sigma=0 and a non-binding clip (dp_update_norms in
+# history.json), median-of-norms over the plateau (rounds>5):
+#   personalisation=fedbn: norms ~flat 0.05-0.18 from round 1; per-dataset
+#     medians BoT 0.053 / CICIDS 0.143 / ToN 0.135 / UNSW 0.123 -> C = 0.13
+#     (the value below; DP sweeps run with fedbn)
+#   personalisation=na: norms start ~5.5 (BN running stats dominate early) and
+#     plateau at medians 0.066-0.280 -> C = 0.25 if ever swept under na
+# Frozen: sweep only dp-noise-multiplier in privacy-utility studies, never C.
+# NOTE: unrelated to the SecAgg+ clipping-range below.
+dp-clipping-norm = 0.13
 # --- secure aggregation (SecAgg+) ---------------------------------------------
 # secagg = true wraps every fit round in Flower's SecAgg+ protocol: the server
 # only ever sees the masked SUM of client updates, never an individual update.

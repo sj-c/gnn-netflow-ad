@@ -22,12 +22,15 @@ Run-config switches:
   secagg          -- true: wrap every fit round in the SecAgg+ secure-aggregation
                      protocol (the server only ever sees the masked sum of client
                      updates, never an individual update).
-  dp-mode         -- "off" | "central" | "local" differential privacy.
-                     central: strategy is wrapped in DifferentialPrivacyClientSide-
-                     FixedClipping (clients clip to dp-clipping-norm via the
-                     fixedclipping_mod client mod; the server adds Gaussian noise
-                     to the aggregate). local: handled entirely client-side by
-                     LocalDpMod -- no server wrapper (see client_app.py).
+  central-dp      -- true: central differential privacy with SERVER-SIDE fixed
+                     clipping (DifferentialPrivacyServerSideFixedClipping): each
+                     round the server L2-clips every client's model update to
+                     dp-clipping-norm and adds Gaussian noise with
+                     std = dp-noise-multiplier * dp-clipping-norm / n_clients to
+                     the aggregate. Server-side clipping requires the server to
+                     see each individual update, so it is mutually exclusive with
+                     secagg, and the noise calibration assumes an unweighted mean,
+                     so it requires client-weight = "equal".
 
 Outputs: checkpoints_infer/federated.pt (final global model + run config) and
 results_infer/federated/history.json (per-round distributed losses/metrics).
@@ -35,13 +38,13 @@ results_infer/federated/history.json (per-round distributed losses/metrics).
 
 import json
 import time
-from logging import INFO
+from logging import INFO, WARNING
 
 import torch
-from flwr.common import Context, log, ndarrays_to_parameters
+from flwr.common import Context, log, ndarrays_to_parameters, parameters_to_ndarrays
 from flwr.server import LegacyContext, ServerConfig
 from flwr.server.strategy import (
-    DifferentialPrivacyClientSideFixedClipping,
+    DifferentialPrivacyServerSideFixedClipping,
     FedAvg,
     FedProx,
 )
@@ -61,7 +64,6 @@ from train_and_inferv2 import resolve_edge_columns
 app = ServerApp()
 
 SHARED_WEIGHT_MODES = ("fedavg", "fedprox")
-DP_MODES = ("off", "central", "local")
 
 
 def _build_initial_model(cfg):
@@ -89,6 +91,30 @@ def _per_dataset_metrics(*keys):
     return aggregate
 
 
+class DpServerSideFixedClipping(DifferentialPrivacyServerSideFixedClipping):
+    """Flower's server-side fixed-clipping central-DP wrapper, plus bookkeeping:
+    records every client's PRE-clip update L2 norm per round (keyed by the
+    'dataset' fit metric) so dp-clipping-norm can be calibrated against the
+    natural update norms of a run. The DP mechanism itself is unchanged."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.update_norms = {}  # server_round -> {dataset: pre-clip L2 norm}
+
+    def aggregate_fit(self, server_round, results, failures):
+        norms = {}
+        for _, res in results:
+            arrays = parameters_to_ndarrays(res.parameters)
+            sq = sum(float(((a - g) ** 2).sum())
+                     for a, g in zip(arrays, self.current_round_params, strict=True))
+            name = str(res.metrics.get("dataset", f"client-{len(norms)}"))
+            norms[name] = sq ** 0.5
+        self.update_norms[server_round] = norms
+        log(INFO, "round %d pre-clip update L2 norms: %s", server_round,
+            {k: round(v, 4) for k, v in sorted(norms.items())})
+        return super().aggregate_fit(server_round, results, failures)
+
+
 def _make_strategy(cfg, initial_parameters):
     shared_weight = cfg["shared-weight"]
     if shared_weight not in SHARED_WEIGHT_MODES:
@@ -102,7 +128,7 @@ def _make_strategy(cfg, initial_parameters):
         min_evaluate_clients=n_clients,
         min_available_clients=n_clients,
         initial_parameters=initial_parameters,
-        fit_metrics_aggregation_fn=_per_dataset_metrics("train_mse", "update_norm"),
+        fit_metrics_aggregation_fn=_per_dataset_metrics("train_mse"),
         evaluate_metrics_aggregation_fn=_per_dataset_metrics("val_mse"),
     )
     if shared_weight == "fedprox":
@@ -110,16 +136,26 @@ def _make_strategy(cfg, initial_parameters):
     else:
         strategy = FedAvg(**common)
 
-    dp_mode = cfg["dp-mode"]
-    if dp_mode not in DP_MODES:
-        raise ValueError(f"unknown dp-mode {dp_mode!r}; choices: {DP_MODES}")
-    if dp_mode == "central":
-        # Client-level central DP, client-side clipping variant (the only one that
-        # composes with SecAgg+: the server never sees an individual update, so it
-        # cannot clip -- clients clip via fixedclipping_mod, the server adds
-        # Gaussian noise (std = noise_multiplier*clipping_norm/n) to the mean.
-        # "local" needs no server wrapper: clients noise their own updates.
-        strategy = DifferentialPrivacyClientSideFixedClipping(
+    if bool(cfg["central-dp"]):
+        if bool(cfg["secagg"]):
+            raise ValueError(
+                "central-dp (server-side clipping) is incompatible with secagg: "
+                "the server must see each individual update to clip it, but "
+                "SecAgg+ only ever reveals the masked sum. Use client-side "
+                "clipping for DP under secure aggregation."
+            )
+        if cfg.get("client-weight", "equal") != "equal":
+            raise ValueError(
+                "central-dp requires client-weight = 'equal': the Gaussian noise "
+                "std = sigma*C/n is calibrated for an unweighted mean of clipped "
+                "updates; 'examples' weighting breaks that sensitivity bound."
+            )
+        if cfg["personalisation"] == "na":
+            log(WARNING, "central-dp with personalisation='na': BatchNorm running "
+                "stats are part of the exchanged update, so they get clipped and "
+                "noised too (noise can push a small running_var negative -> NaN). "
+                "Consider personalisation='fedbn' for DP runs.")
+        strategy = DpServerSideFixedClipping(
             strategy,
             noise_multiplier=float(cfg["dp-noise-multiplier"]),
             clipping_norm=float(cfg["dp-clipping-norm"]),
@@ -168,11 +204,13 @@ def main(grid: Grid, context: Context) -> None:
         "rounds=%d local_epochs=%s (%d exchanged arrays, no early stopping)",
         cfg["shared-weight"], personalisation, secagg, num_rounds,
         cfg["local-epochs"], len(keys))
-    if cfg["dp-mode"] != "off":
-        log(INFO, "differential privacy: mode=%s noise_multiplier=%s "
-            "clipping_norm=%s delta=%s",
-            cfg["dp-mode"], cfg["dp-noise-multiplier"],
-            cfg["dp-clipping-norm"], cfg["dp-delta"])
+    central_dp = bool(cfg["central-dp"])
+    if central_dp:
+        n_clients = len(CLIENT_DATASETS)
+        sigma, clip = float(cfg["dp-noise-multiplier"]), float(cfg["dp-clipping-norm"])
+        log(INFO, "central DP (server-side fixed clipping): noise_multiplier=%s "
+            "clipping_norm=%s n_clients=%d -> per-element noise std %.6f on the aggregate",
+            sigma, clip, n_clients, sigma * clip / n_clients)
 
     t_start = time.time()
     workflow(grid, legacy_context)
@@ -193,6 +231,7 @@ def main(grid: Grid, context: Context) -> None:
         "shared_weight": cfg["shared-weight"],
         "personalisation": personalisation,
         "secagg": secagg,
+        "central_dp": central_dp,
         "datasets": CLIENT_DATASETS,
         "run_config": cfg,
         "rounds_trained": num_rounds,
@@ -200,6 +239,19 @@ def main(grid: Grid, context: Context) -> None:
     }, ckpt_path)
     log(INFO, "saved final-round global model to %s (train_time=%.1fs)",
         ckpt_path, train_time)
+
+    dp_extras = {}
+    if central_dp:
+        dp_extras = {
+            "central_dp": {
+                "noise_multiplier": float(cfg["dp-noise-multiplier"]),
+                "clipping_norm": float(cfg["dp-clipping-norm"]),
+                "num_sampled_clients": len(CLIENT_DATASETS),
+            },
+            # {round: {dataset: pre-clip update L2 norm}} -- calibration data for
+            # dp-clipping-norm (median of these ~= a good C)
+            "dp_update_norms": strategy.update_norms,
+        }
 
     hist = legacy_context.history
     history_path = REPO_ROOT / "results_infer" / "federated" / "history.json"
@@ -210,12 +262,8 @@ def main(grid: Grid, context: Context) -> None:
             "shared_weight": cfg["shared-weight"],
             "personalisation": personalisation,
             "secagg": secagg,
-            # everything a post-hoc accountant needs to map this run to epsilon
-            "dp_mode": cfg["dp-mode"],
-            "dp_noise_multiplier": cfg["dp-noise-multiplier"],
-            "dp_clipping_norm": cfg["dp-clipping-norm"],
-            "dp_delta": cfg["dp-delta"],
             "train_time_sec": train_time,
+            **dp_extras,
             # [(round, weighted-mean val MSE across clients), ...]
             "val_mse": hist.losses_distributed,
             # {"val_mse/<dataset>": [(round, value), ...], ...}

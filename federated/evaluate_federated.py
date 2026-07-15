@@ -5,9 +5,9 @@ final-round global model -- there is no best-round selection). For each dataset
 this rebuilds the client's silo-local preprocessing and val split exactly as
 during training (same run config + seed), loads the global model plus -- for
 personalisation = fedbn/fedrep -- the private parameters that client persisted
-to checkpoints_infer/federated_private/<dataset>.pt, calibrates label-free
-benign-quantile thresholds on that client's validation edges, then streams the
-holdout through the model. Outputs mirror the other modes:
+to checkpoints_infer/federated_private/<dataset>.pt, then streams the holdout
+through the model and reports only the label-dependent Youden's-J operating
+point (no label-free benign-quantile thresholds). Outputs mirror the other modes:
 results_infer/federated/<dataset>/metrics.json + roc_curve.png +
 threshold_sweep.csv, and results_infer/federated/comparison.csv.
 
@@ -30,6 +30,7 @@ from fedgnn.task import (
     REPO_ROOT,
     build_model,
     load_client_data,
+    parse_client_name,
     private_state_path,
 )
 
@@ -38,8 +39,8 @@ import torch
 
 from train_and_inferv2 import (
     DATASETS,
-    calibrate_thresholds,
     evaluate_holdout,
+    recompute_bn_stats,
     setup_logger,
 )
 from fedgnn.task import resolve_data_dir
@@ -55,7 +56,6 @@ def parse_args():
     p.add_argument("--output-dir", default=str(REPO_ROOT / "results_infer"))
     p.add_argument("--log-dir", default=str(REPO_ROOT / "logs_infer"))
     p.add_argument("--device", default="auto", help="'auto', 'cuda', 'cuda:0', or 'cpu'")
-    p.add_argument("--calib-quantiles", default="0.90,0.95,0.99,0.995,0.999")
     p.add_argument("--infer-chunk-windows", type=int, default=1000)
     p.add_argument("--max-holdout-rows", type=int, default=None,
                    help="cap rows read from the holdout split (smoke-testing)")
@@ -80,10 +80,10 @@ def main():
     dataset_names = CLIENT_DATASETS if args.datasets == "all" else \
         [d.strip() for d in args.datasets.split(",")]
     for name in dataset_names:
-        if name not in DATASETS:
+        # IID shard names ("<dataset>#<k>") resolve to their base dataset
+        if parse_client_name(name)[0] not in DATASETS:
             raise ValueError(f"Unknown dataset {name!r}; choices: {CLIENT_DATASETS}")
 
-    calib_quantiles = sorted(float(q) for q in args.calib_quantiles.split(",") if q.strip())
     device = (torch.device("cuda" if torch.cuda.is_available() else "cpu")
               if args.device == "auto" else torch.device(args.device))
     data_dir = resolve_data_dir(cfg["data-dir"])
@@ -125,25 +125,37 @@ def main():
         # global model = the exchanged/aggregated subset (strict=False: for
         # fedbn/fedrep the private keys are not in the checkpoint by design)
         model.load_state_dict(ckpt["model_state_dict"], strict=False)
+        adabn_batches = None
         if personalisation != "na":
-            # pair it with the private parameters this client persisted during
-            # training (BN stats for fedbn; decoder + global-edge head for fedrep)
             priv_path = private_state_path(name)
-            if not priv_path.exists():
+            if priv_path.exists():
+                # a training client: pair the global model with the private params
+                # this client persisted (BN stats for fedbn; decoder + head for fedrep)
+                model.load_state_dict(
+                    torch.load(priv_path, map_location="cpu", weights_only=True),
+                    strict=False)
+            elif personalisation == "fedbn":
+                # leave-one-dataset-out held-out: this dataset was never a client, so it
+                # has no private FedBN params. Adapt BN to the target domain via AdaBN --
+                # re-estimate the encoder's BN running stats on the held-out's own benign
+                # val edges (affine gamma/beta stay at init). Standard FedBN cross-domain
+                # transfer; the shared backbone is already loaded above.
+                logger.info(f"{name}: no private FedBN params (held-out); "
+                            f"applying AdaBN on its benign val edges")
+                adabn_batches = recompute_bn_stats(
+                    model, data["val_loader"], device, logger)
+            else:
                 raise FileNotFoundError(
                     f"{priv_path} not found: personalisation={personalisation!r} needs "
                     f"the private parameters {name}'s client saved during training")
-            model.load_state_dict(
-                torch.load(priv_path, map_location="cpu", weights_only=True),
-                strict=False)
 
-        # thresholds are per client: each silo's scaler gives it its own error scale
-        calib_thresholds, n_calib_edges = calibrate_thresholds(
-            model, data["val_loader"], device, calib_quantiles, logger)
-
+        # only the label-dependent Youden's-J operating point is reported; the
+        # label-free benign-quantile thresholds are intentionally not calibrated
+        # IID shards score on their base dataset's holdout (all shards share it)
+        base_name = parse_client_name(name)[0]
         metrics, all_preds, all_labels = evaluate_holdout(
-            data_dir / DATASETS[name][1], data["processor"], model, device, eval_args,
-            calib_thresholds, ds_out_dir, logger,
+            data_dir / DATASETS[base_name][1], data["processor"], model, device, eval_args,
+            {}, ds_out_dir, logger,
         )
         del all_preds, all_labels, data
         gc.collect()
@@ -159,7 +171,7 @@ def main():
             "log1p_columns": cfg["log1p-columns"],
             "rounds_trained": ckpt["rounds_trained"],
             "train_time_sec": ckpt["train_time_sec"],
-            "n_calib_edges": n_calib_edges,
+            "adabn_batches": adabn_batches,  # non-null only for a fedbn held-out dataset
             "eval_time_sec": time.time() - t_start,
         })
         with open(metrics_path, "w") as f:

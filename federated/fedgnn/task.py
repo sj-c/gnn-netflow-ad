@@ -58,8 +58,86 @@ from train_and_inferv2 import (
     split_data,
 )
 
-# partition-id -> dataset; order matches the DATASETS insertion order
-CLIENT_DATASETS = list(DATASETS)
+# stable global dataset order -- NEVER changes with the federation composition,
+# so each dataset's train/val split is reproducible whether or not it is a client
+ALL_DATASETS = list(DATASETS)
+
+# partition-id -> dataset; order matches the DATASETS insertion order. For the
+# leave-one-dataset-out transfer study the held-out <dataset name> is dropped from
+# the federation (the remaining ones become the clients) but can still be
+# *evaluated* zero-shot. num-supernodes MUST equal len() below (use the
+# local-simulation-gpu-3 federation when one dataset is held out).
+#
+# The held-out is resolved the SAME daemon-immune way as REPO_ROOT above: the
+# flwr-superlink daemon that spawns the training apps does NOT inherit the
+# launcher's environment, so an env-only FED_HELDOUT never reaches training and
+# NOTHING would be held out (all 4 stay clients). Resolve in order of decreasing
+# reliability:
+#   1. FED_HELDOUT env var             (works when the daemon inherited the env,
+#                                        e.g. the direct-subprocess eval)
+#   2. ~/.flwr/gnn_fed_heldout file    (daemon-immune: read from disk at import;
+#                                        run_federated_gpu.sh writes it every run,
+#                                        empty when no dataset is held out)
+_HELDOUT_STATE_FILE = Path.home() / ".flwr" / "gnn_fed_heldout"
+
+
+def _resolve_heldout():
+    env_held = os.environ.get("FED_HELDOUT", "").strip()
+    if env_held:
+        return env_held
+    if _HELDOUT_STATE_FILE.is_file():
+        stored = _HELDOUT_STATE_FILE.read_text().strip()
+        if stored:
+            return stored
+    return ""
+
+
+_HELDOUT = _resolve_heldout()
+if _HELDOUT and _HELDOUT not in ALL_DATASETS:
+    raise ValueError(f"FED_HELDOUT={_HELDOUT!r} not in {ALL_DATASETS}")
+
+# IID single-dataset control: instead of 4 clients = 4 different datasets
+# (extreme non-IID), split ONE dataset into N_IID_SHARDS disjoint IID shards, one
+# per client. Isolates how much of a result is driven by client heterogeneity vs
+# other factors by removing the non-IID split. Resolved the
+# same daemon-immune way as _HELDOUT: env var first, then ~/.flwr/gnn_fed_single
+# (run_federated_gpu.sh writes it every run, empty when unset). A client name is
+# then "<dataset>#<shard>", e.g. "NF-CICIDS2018-v3#0"; parse_client_name() splits
+# it back into (base dataset, shard index) everywhere the base is needed.
+N_IID_SHARDS = 4
+_SINGLE_STATE_FILE = Path.home() / ".flwr" / "gnn_fed_single"
+
+
+def _resolve_single():
+    env_single = os.environ.get("FED_SINGLE_DATASET", "").strip()
+    if env_single:
+        return env_single
+    if _SINGLE_STATE_FILE.is_file():
+        stored = _SINGLE_STATE_FILE.read_text().strip()
+        if stored:
+            return stored
+    return ""
+
+
+def parse_client_name(name):
+    """Split a client name into (base dataset, shard index or None). Plain dataset
+    names (non-IID mode) return (name, None); IID shard names "<dataset>#<k>"
+    return (dataset, k)."""
+    if "#" in name:
+        base, shard = name.rsplit("#", 1)
+        return base, int(shard)
+    return name, None
+
+
+_SINGLE = _resolve_single()
+if _SINGLE:
+    if _SINGLE not in ALL_DATASETS:
+        raise ValueError(f"FED_SINGLE_DATASET={_SINGLE!r} not in {ALL_DATASETS}")
+    if _HELDOUT:
+        raise ValueError("FED_SINGLE_DATASET and FED_HELDOUT are mutually exclusive")
+    CLIENT_DATASETS = [f"{_SINGLE}#{k}" for k in range(N_IID_SHARDS)]
+else:
+    CLIENT_DATASETS = [d for d in ALL_DATASETS if d != _HELDOUT]
 
 # per-process cache so a client only loads data + builds graphs once, not every round
 _client_data_cache = {}
@@ -184,11 +262,12 @@ def load_client_data(dataset_name, cfg):
     """Load one client's benign training split, fit its preprocessor, build the
     windowed graphs, and split train/val. Deterministic given the run config, so
     evaluate_federated.py can rebuild the exact same preprocessor and val split."""
+    base_name, shard_idx = parse_client_name(dataset_name)
     edge_columns = resolve_edge_columns(cfg["edge-columns"])
     log1p_columns = resolve_log1p_columns(cfg["log1p-columns"], edge_columns)
     data_dir = resolve_data_dir(cfg["data-dir"])
 
-    df = read_parquet_head(data_dir / DATASETS[dataset_name][0], cfg["max-train-rows"])
+    df = read_parquet_head(data_dir / DATASETS[base_name][0], cfg["max-train-rows"])
 
     processor = NetflowPreprocessor(
         df,
@@ -206,6 +285,24 @@ def load_client_data(dataset_name, cfg):
     if not graphs:
         raise RuntimeError(f"no training graphs built for {dataset_name}; "
                            "check data / window-size")
+
+    # IID single-dataset control: keep only this client's disjoint 1/N_IID_SHARDS
+    # slice of the windows. The permutation is seeded by cfg["seed"] ALONE (NOT the
+    # shard index), so every shard-client draws the SAME shuffle and the contiguous
+    # slices are guaranteed disjoint -- an IID partition of one dataset across the
+    # clients. No-op in the normal non-IID mode (shard_idx is None).
+    if shard_idx is not None:
+        gen = torch.Generator().manual_seed(int(cfg["seed"]))
+        perm = torch.randperm(len(graphs), generator=gen).tolist()
+        n = len(graphs)
+        lo = shard_idx * n // N_IID_SHARDS
+        hi = (shard_idx + 1) * n // N_IID_SHARDS
+        graphs = [graphs[i] for i in perm[lo:hi]]
+        if not graphs:
+            raise RuntimeError(
+                f"IID shard {shard_idx}/{N_IID_SHARDS} of {base_name} is empty "
+                f"({n} windows); use fewer shards or more max-train-rows")
+
     processor.df = None  # scaler/vocabs are fitted; free the raw rows
 
     edge_attr_dim = processor.feature_dim
@@ -217,8 +314,16 @@ def load_client_data(dataset_name, cfg):
         )
 
     # seed right before the split so every process (client actor or the eval
-    # script) reproduces the identical train/val partition of the windows
-    torch.manual_seed(cfg["seed"] + CLIENT_DATASETS.index(dataset_name))
+    # script) reproduces the identical train/val partition of the windows. Use
+    # the STABLE global index so a dataset's split does not shift when the
+    # federation is smaller (leave-one-out), and so a held-out dataset -- absent
+    # from CLIENT_DATASETS -- can still be evaluated without an index error.
+    # stable, per-client offset so each client's train/val split differs but is
+    # reproducible in eval. Non-IID: the dataset's global index. IID shards: the
+    # base index times N_IID_SHARDS plus the shard, so the shards get distinct splits.
+    base_idx = ALL_DATASETS.index(base_name)
+    split_offset = base_idx if shard_idx is None else base_idx * N_IID_SHARDS + shard_idx
+    torch.manual_seed(cfg["seed"] + split_offset)
     train_dataset, val_dataset = split_data(graphs, train_ratio=cfg["train-ratio"])
 
     return {

@@ -29,22 +29,12 @@ SecAgg+ (secagg=true):
   ``secaggplus_or_passthrough`` delegates to Flower's secaggplus_mod whenever the
   incoming TRAIN message carries the SecAgg+ config record and passes plain
   messages straight through, so one ClientApp serves both secagg settings.
-
-Differential privacy (dp-mode = "off" | "central" | "local"):
-  ``dp_dispatch`` routes TRAIN replies through fixedclipping_mod (central: clip
-  here, noise at the server) or LocalDpMod (local: clip AND noise here) based on
-  the run config; sigma/C/delta knobs are shared with the server side. With
-  dp-log-norms=true, fit() also reports the pre-clip L2 norm of the exchanged
-  update ("update_norm") for calibrating dp-clipping-norm.
 """
-
-import logging
-import math
 
 import torch
 import torch.nn.functional as F
 from flwr.client import ClientApp, NumPyClient
-from flwr.client.mod import LocalDpMod, fixedclipping_mod, secaggplus_mod
+from flwr.client.mod import secaggplus_mod
 from flwr.common import Context, Message
 from flwr.common.secure_aggregation.secaggplus_constants import RECORD_KEY_CONFIGS
 
@@ -58,8 +48,6 @@ from fedgnn.task import (
     private_state_path,
 )
 from train_and_inferv2 import test as val_mse_fn
-
-_LOGGER = logging.getLogger("fedgnn.client")
 
 # Long-lived per-actor caches (same assumption that lets task.py cache a client's
 # data across rounds): the client object keeps the model resident, and the private
@@ -207,13 +195,6 @@ class NetflowClient(NumPyClient):
             "dataset": self.dataset,
             "n_train_graphs": int(self.data["n_train_graphs"]),
         }
-        if self.cfg.get("dp-log-norms", False):
-            # pre-clip L2 norm of this round's exchanged update (`parameters` is
-            # the untouched incoming global model) -- the calibration signal for
-            # dp-clipping-norm; folded into history.json as update_norm/<dataset>
-            sq = sum(float(((new.astype("float64") - old.astype("float64")) ** 2).sum())
-                     for old, new in zip(parameters, self._exchanged_arrays(), strict=True))
-            metrics["update_norm"] = math.sqrt(sq)
         return self._exchanged_arrays(), self._agg_weight(), metrics
 
     def evaluate(self, parameters, config):
@@ -246,48 +227,4 @@ def secaggplus_or_passthrough(msg: Message, ctxt: Context, call_next) -> Message
     return secaggplus_mod(msg, ctxt, call_next)
 
 
-# --- differential privacy (dp-mode run-config switch) ---------------------------
-_local_dp_mods = {}
-
-
-def _local_dp_mod_for(run_config):
-    """LocalDpMod parameterised from the same sigma knob central DP uses.
-
-    Flower's LocalDpMod takes a per-round epsilon, not a noise multiplier, so we
-    invert the classic Gaussian mechanism (noise_std = sensitivity *
-    sqrt(2*ln(1.25/delta)) / eps) at sensitivity = C to get the eps whose noise
-    std equals sigma*C. Central and local runs at the same sigma are then matched
-    in per-client per-round noise, keeping dp-noise-multiplier the single swept
-    axis for both modes. (Cached: the mod is stateless across rounds.)"""
-    sigma = float(run_config["dp-noise-multiplier"])
-    clip = float(run_config["dp-clipping-norm"])
-    delta = float(run_config["dp-delta"])
-    key = (sigma, clip, delta)
-    if key not in _local_dp_mods:
-        epsilon = math.sqrt(2.0 * math.log(1.25 / delta)) / sigma
-        _LOGGER.info("local DP: sigma=%s -> per-round epsilon=%.4f (C=%s, delta=%s)",
-                     sigma, epsilon, clip, delta)
-        _local_dp_mods[key] = LocalDpMod(
-            clipping_norm=clip, sensitivity=clip, epsilon=epsilon, delta=delta)
-    return _local_dp_mods[key]
-
-
-def dp_dispatch(msg: Message, ctxt: Context, call_next) -> Message:
-    """Apply the client-side DP mod selected by run-config `dp-mode`:
-      central -- fixedclipping_mod clips the update to the norm the server wrapper
-                 sends along (noise is added server-side to the aggregate)
-      local   -- LocalDpMod clips AND noises the update before it leaves the client
-    Both mods pass non-TRAIN messages straight through. This mod sits AFTER the
-    SecAgg+ mod in the mods list (= closer to the app), so clipping/noising happens
-    on the raw update before SecAgg+ masks the reply."""
-    mode = str(ctxt.run_config.get("dp-mode", "off"))
-    if mode == "central":
-        return fixedclipping_mod(msg, ctxt, call_next)
-    if mode == "local":
-        return _local_dp_mod_for(ctxt.run_config)(msg, ctxt, call_next)
-    if mode != "off":
-        raise ValueError(f"unknown dp-mode {mode!r}; choices: off, central, local")
-    return call_next(msg, ctxt)
-
-
-app = ClientApp(client_fn=client_fn, mods=[secaggplus_or_passthrough, dp_dispatch])
+app = ClientApp(client_fn=client_fn, mods=[secaggplus_or_passthrough])

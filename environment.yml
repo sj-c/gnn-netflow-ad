@@ -1,0 +1,44 @@
+# Conda environment for centralised training/inference (train_and_inferv2.py) and
+# federated training (run_federated_gpu.sh / federated/). Mirrors the working GPU
+# environment `gnn-netflow-ad` (python3.11, torch 2.8.0+cu128, CUDA driver 575.x /
+# CUDA 12.9). Does NOT include cudf/cupy/morpheus/mrc -- those are only needed by
+# the unrelated legacy Morpheus/RAPIDS serving stages (src/scripts.py, src/stages/*),
+# which train_and_inferv2.py and the federated pipeline do not import.
+#
+# Create:   conda env create -f environment.yml
+# Update:   conda env update -f environment.yml --prune
+# Activate: conda activate gnn-netflow-ad
+#
+# If your machine's CUDA driver doesn't support CUDA 12.8, change the
+# --extra-index-url below to a build matching your driver (e.g. .../whl/cu121,
+# .../whl/cu124, .../whl/cu126) or .../whl/cpu for a CPU-only install -- see
+# https://pytorch.org/get-started/locally/. torch_geometric and flwr do not need
+# to change; only the torch build tag does.
+name: gnn-netflow-ad
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - --extra-index-url https://download.pytorch.org/whl/cu128
+      - torch==2.8.0+cu128
+      - torch_geometric==2.7.0
+      - flwr[simulation]==1.30.0
+      - scikit-learn==1.8.0
+      - pandas==2.3.3
+      - pyarrow==24.0.0
+      - scipy==1.17.1
+      - matplotlib==3.10.9
+      - tqdm==4.67.3
+      - numpy==2.4.6
+
+# Optional PyG compiled extras (pyg-lib, torch-scatter, torch-sparse,
+# torch-cluster, torch-spline-conv) are intentionally NOT pinned here: on the
+# reference GPU machine they were built against a mismatched torch/CUDA combo and
+# fail to load (UserWarning at import), and torch_geometric silently falls back to
+# pure-PyTorch ops -- correct, just slower. To try them, after activating the env:
+#   pip install pyg-lib torch-scatter torch-sparse torch-cluster torch-spline-conv \
+#       -f https://data.pyg.org/whl/torch-2.8.0+cu128.html
+# and verify they actually import cleanly (`python -c "import torch_geometric"`
+# with no UserWarnings) before relying on them.

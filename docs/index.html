@@ -59,8 +59,7 @@
     <div class="section-head">
       <div class="eyebrow">The problem</div>
       <h2>Why new attacks still slip through.</h2>
-      <p class="lede">Four obstacles block the obvious approaches, <b>mitigated</b> by the
-        two approaches this project combines.</p>
+      <p class="lede">Four obstacles stand in the way. <b>Two ideas clear them all.</b></p>
     </div>
 
     <div class="probmap" id="probmap">
@@ -95,8 +94,8 @@
       <div class="fix-row">
         <a class="fix fixA" id="fixA" href="#pipeline">
           <span class="fx-k">Approach 1 · graph autoencoder</span>
-          <h3>Study normal, flag the strange</h3>
-          <p>The model trains only on everyday traffic and flags whatever doesn't fit: no signatures, no attack labels needed.</p>
+          <h3>Learn normal, flag what doesn't fit</h3>
+          <p>The model trains only on everyday traffic; anything it can't explain gets flagged. No signatures, no attack labels needed.</p>
           <span class="fx-go">See how it works ↓</span>
         </a>
         <a class="fix fixB" id="fixB" href="#federated">
@@ -107,7 +106,6 @@
         </a>
       </div>
     </div>
-    <p class="ps-hint">Hover an obstacle to trace <b>which idea knocks it down</b>. Click an idea to jump straight to it.</p>
   </div>
 </section>
 
@@ -116,10 +114,10 @@
   <div class="wrap">
     <div class="section-head">
       <div class="eyebrow">Putting It to the Test</div>
-      <h2>Four very different networks.</h2>
-      <p class="lede">Each record is one <b>NetFlow</b> log: who talked to whom, for how long, and how much
-        data, never the contents. The detector is tested on four public NetFlow benchmarks, each standing in
-        for one organisation.</p>
+      <h2>Four different networks.</h2>
+      <p class="lede">The detector is tested on four public NetFlow benchmarks, each standing in for one
+        organisation. Each record is one <b>NetFlow</b> log: who talked to whom, for how long, and how much
+        data — never the contents.</p>
     </div>
 
     <div class="nf-eg">
@@ -135,36 +133,48 @@
           </tbody>
         </table>
       </div>
+      <p class="nf-note">The detector reads just <b>seven fields</b> of each record — metadata most routers already export:</p>
+      <p class="fflow">
+        <span class="ff"><b>duration</b> <em>how long it lasted</em></span>
+        <span class="ff"><b>packets</b> <em>how many crossed</em></span>
+        <span class="ff"><b>bytes</b> <em>how much data moved</em></span>
+        <span class="ff"><b>minimum TTL</b> <em>roughly how far away the sender is</em></span>
+        <span class="ff"><b>protocol</b> <em>the language spoken: TCP, UDP…</em></span>
+        <span class="ff"><b>source port</b> <em>which service sent it</em></span>
+        <span class="ff"><b>dest port</b> <em>what it's for: web, mail, DNS…</em></span>
+      </p>
     </div>
-    <div class="ds">
-      <div class="dscard">
-        <div class="name">NF-CSE-CIC-IDS2018</div>
-        <div class="env">Large corporate network</div>
-        <div class="bar"><span class="benign" style="width:87.1%"></span><span class="attack" style="width:12.9%"></span></div>
-        <div class="split"><span>20.1M flows</span><span class="a">12.9% attack</span></div>
+
+    <div class="nf-eg dsblock">
+      <div class="nf-cap">The four networks, calmest to loudest</div>
+      <div class="dschart">
+        <div class="dsrow">
+          <div class="dsl"><b>NF-UNSW-NB15</b><small>corporate network · 2.4M flows</small></div>
+          <div class="dsbar"><span class="benign" style="width:94.6%"></span><span class="attack" style="width:5.4%"></span></div>
+          <div class="dsp">5.4%<small>attack</small></div>
+        </div>
+        <div class="dsrow">
+          <div class="dsl"><b>NF-CSE-CIC-IDS2018</b><small>large corporate network · 20.1M flows</small></div>
+          <div class="dsbar"><span class="benign" style="width:87.1%"></span><span class="attack" style="width:12.9%"></span></div>
+          <div class="dsp">12.9%<small>attack</small></div>
+        </div>
+        <div class="dsrow">
+          <div class="dsl"><b>NF-ToN-IoT</b><small>smart devices + office · 27.5M flows</small></div>
+          <div class="dsbar"><span class="benign" style="width:61%"></span><span class="attack" style="width:39%"></span></div>
+          <div class="dsp">39%<small>attack</small></div>
+        </div>
+        <div class="dsrow">
+          <div class="dsl"><b>NF-BoT-IoT</b><small>smart devices under heavy attack · 17.0M flows</small></div>
+          <div class="dsbar"><span class="benign" style="width:0.3%"></span><span class="attack" style="width:99.7%"></span></div>
+          <div class="dsp">99.7%<small>attack</small></div>
+        </div>
+        <div class="legend" style="margin-top:14px">
+          <span><i style="background:var(--signal)"></i> benign flows</span>
+          <span><i style="background:var(--anomaly)"></i> attack flows</span>
+        </div>
       </div>
-      <div class="dscard">
-        <div class="name">NF-UNSW-NB15</div>
-        <div class="env">Corporate network, mixed attacks</div>
-        <div class="bar"><span class="benign" style="width:94.6%"></span><span class="attack" style="width:5.4%"></span></div>
-        <div class="split"><span>2.4M flows</span><span class="a">5.4% attack</span></div>
-      </div>
-      <div class="dscard">
-        <div class="name">NF-ToN-IoT</div>
-        <div class="env">Smart devices + office network</div>
-        <div class="bar"><span class="benign" style="width:61%"></span><span class="attack" style="width:39%"></span></div>
-        <div class="split"><span>27.5M flows</span><span class="a">39% attack</span></div>
-      </div>
-      <div class="dscard">
-        <div class="name">NF-BoT-IoT</div>
-        <div class="env">Smart-device network under heavy attack</div>
-        <div class="bar"><span class="benign" style="width:0.3%"></span><span class="attack" style="width:99.7%"></span></div>
-        <div class="split"><span>17.0M flows</span><span class="a">99.7% attack</span></div>
-      </div>
-    </div>
-    <div class="legend">
-      <span><i style="background:var(--signal)"></i> benign flows</span>
-      <span><i style="background:var(--anomaly)"></i> attack flows</span>
+      <p class="nf-note">Three of the four are mostly normal traffic; BoT-IoT is nearly wall-to-wall attack — and
+        what counts as “normal” looks different on every one of them.</p>
     </div>
   </div>
 </section>
@@ -174,9 +184,9 @@
   <div class="wrap">
     <div class="section-head">
       <div class="eyebrow">The model</div>
-      <h2>Connection logs in, suspicion scores out.</h2>
-      <p class="lede">The detector is built from one core idea, the <b>autoencoder</b>, plus one twist,
-        the <b>graph</b>.</p>
+      <h2><span class="in-w">Connection logs in</span>, <span class="out-w">suspicion scores out</span>.</h2>
+      <p class="lede">The detector takes one core idea, the <b>autoencoder</b>, and puts it to work
+        on a <b>graph</b> of the network.</p>
     </div>
 
     <div class="ae-intro">
@@ -203,27 +213,11 @@
       <svg viewBox="0 0 920 360" role="img" aria-label="Diagram showing connection records becoming a directed graph, device profiles, a network summary, rebuilt connection values and one flagged anomaly" id="pipe-svg"></svg>
       <div class="stage-cap">
         <span class="n" id="pipe-cap-n">STEP 1 / 5</span>
-        <span class="role-chip" id="pipe-role"></span>
-        <span class="capbody"><b id="pipe-cap-t">Draw the graph.</b> <span id="pipe-cap">Take 1,000 connection records and turn them into a directed graph: each device a dot, each connection an arrow from sender to receiver.</span></span>
+        <span class="capbody"><b id="pipe-cap-t">Draw the graph.</b> <span id="pipe-cap">Take 1,000 connection records and turn them into a directed graph of who talks to whom.</span></span>
         <div class="stage-dots" id="pipe-dots" aria-label="Go to step"></div>
       </div>
     </div>
     <noscript><figure class="fig" style="margin-top:22px"><div class="fig-body"><img src="assets/pipeline.png" alt="Graph Autoencoder pipeline diagram"></div></figure></noscript>
-
-    <div class="fields">
-      <div class="eyebrow">What it needs</div>
-      <h3 style="margin:14px 0 10px"><b>Only</b> seven fields needed per connection.</h3>
-      <p>The same connection metadata most routers already export:</p>
-      <p class="fflow">
-        <span class="ff"><b>duration</b> <em>how long it lasted</em></span>
-        <span class="ff"><b>packets</b> <em>how many crossed</em></span>
-        <span class="ff"><b>bytes</b> <em>how much data moved</em></span>
-        <span class="ff"><b>minimum TTL</b> <em>roughly how far away the sender is</em></span>
-        <span class="ff"><b>protocol</b> <em>the language spoken: TCP, UDP…</em></span>
-        <span class="ff"><b>source port</b> <em>which service sent it</em></span>
-        <span class="ff"><b>dest port</b> <em>what it's for: web, mail, DNS…</em></span>
-      </p>
-    </div>
   </div>
 </section>
 
@@ -246,11 +240,12 @@
     </div>
 
     <div class="stage" id="fedround">
+      <button class="stage-nav prev" id="fr-prev" aria-label="Previous step">←</button>
+      <button class="stage-nav next" id="fr-next" aria-label="Next step">→</button>
       <svg viewBox="0 0 960 430" role="img" aria-label="Animated diagram of one federated learning round: the coordinator sends a model to four organisations, each trains on traffic logs that stay behind a fence, and only model updates, optionally masked or noised, travel back to be averaged" id="fr-svg"></svg>
       <div class="fr-controls">
-        <button class="playbtn" id="fr-play" aria-pressed="false">▶ Play</button>
         <span class="lbl">Options:</span>
-        <button class="tgl on" id="tg-fedbn" aria-pressed="true">Keep scaling local (FedBN)</button>
+        <button class="tgl on" id="tg-fedbn" aria-pressed="true">Keep local settings home (FedBN)</button>
         <button class="tgl" id="tg-secagg" aria-pressed="false">Mask updates (SecAgg+)</button>
         <button class="tgl" id="tg-dp" aria-pressed="false">Add noise (DP)</button>
         <span class="fr-round" id="fr-round">Round 1 of 50</span>
@@ -266,8 +261,8 @@
     <div class="section-head">
       <div class="eyebrow">Results · six insights</div>
       <h2>What the experiments show.</h2>
-      <p class="lede">Six insights, split by the two ideas from the top: first the graph autoencoder
-        on its own, then what federated training adds.</p>
+      <p class="lede">Six insights: first, what the graph autoencoder can do on its own — then what
+        federated training adds.</p>
     </div>
 
     <div class="res-part rp1">
@@ -278,13 +273,13 @@
     <!-- insight 1: the trade-off -->
     <div class="result-block p1">
       <div class="rb-label"><span class="rb-num">01</span> The trade-off</div>
-      <h3 class="rb-title">The Balance Between Threat Detection and False Alarms.</h3>
+      <h3 class="rb-title">Catching more attacks means raising more false alarms.</h3>
       <p class="rb-text">Four detectors, each trained and tested on its own network. Every detector trades
         the same two things off: <b>attacks caught</b> against <b>normal traffic wrongly flagged</b>.</p>
       <div class="viz" id="viz-caught" data-viz>
         <div class="viz-head"><h4>Attacks caught vs false alarms, per network.</h4></div>
         <div class="pbars"></div>
-        <div class="foot">BoT-IoT catches <b>96%</b> of attacks but wrongly flags <b>41%</b> of its normal traffic; UNSW almost never false-alarms <b>5%</b> but misses <b>30%</b> of attacks.</div>
+        <div class="foot"><b class="hotname">BoT-IoT</b> catches <b>96%</b> of attacks but wrongly flags <b>41%</b> of its normal traffic; <b class="hotname">UNSW</b> false-alarms just <b>5%</b> but misses <b>30%</b> of attacks.</div>
       </div>
     </div>
 
@@ -292,9 +287,8 @@
     <div class="result-block p1">
       <div class="rb-label"><span class="rb-num">02</span> The domain gap</div>
       <h3 class="rb-title">A model trained on one network fails on other networks.</h3>
-      <p class="rb-text">Take each detector out of the network it was trained on and test it on the other
-        three. It collapses: it learned <em>its own network's</em> habits, not a universal notion of
-        normal traffic.</p>
+      <p class="rb-text">Test each detector on the three networks it never saw, and the scores collapse:
+        each one learned what “normal” means on its own network, and nothing more.</p>
       <div class="score-key"><b>The score used here: ROC-AUC.</b>  ROC-AUC grades how well
         a detector <em>ranks</em> connections from least to most suspicious — the more cleanly the
         attacks end up at the suspicious end, the higher the score:
@@ -316,10 +310,11 @@
         </div>
       </div>
       <div class="viz" id="viz-homeaway" data-viz>
-        <div class="viz-head"><h4>Same detector, familiar vs unfamiliar network.</h4></div>
-        <div class="vleg"><span><i class="rnd" style="background:var(--signal)"></i> familiar — tested on its own network</span><span><i class="rnd" style="background:var(--anomaly-deep)"></i> unfamiliar — tested on the other three (avg)</span><span><i style="background:none;border-left:2px dashed #c7d0e2;width:2px;border-radius:0"></i> coin flip (50)</span></div>
+        <div class="viz-head"><h4>Same detector, home network vs networks it has never seen.</h4></div>
+        <p class="viz-sub">Each score is ROC-AUC, as above: 100 = perfect ranking, 50 = a coin flip.</p>
+        <div class="vleg"><span><i class="rnd" style="background:var(--signal)"></i> on its home network — the one it trained on</span><span><i class="rnd" style="background:var(--anomaly-deep)"></i> on the other three networks — never seen in training (average)</span></div>
         <div class="dumb"></div>
-        <div class="foot">Every detector drops <b>9–49%</b> on networks it wasn't trained on.</div>
+        <div class="foot">Every detector drops <b>9 to 49 points</b> on networks it wasn't trained on.</div>
       </div>
     </div>
 
@@ -327,11 +322,12 @@
     <div class="result-block p1">
       <div class="rb-label"><span class="rb-num">03</span> Negative transfer</div>
       <h3 class="rb-title">Simply pooling everyone's data makes a worse model.</h3>
-      <p class="rb-text">The obvious fix — merge all four datasets and train one big model — backfires.
-        Four very different "normals" blur into a vague average that fits nobody. This is
+      <p class="rb-text">The obvious fix is to merge all four datasets and train one big model. It backfires:
+        four very different "normals" blur into a vague average that fits nobody. This is
         <b>negative transfer</b>.</p>
       <div class="viz" id="viz-pool" data-viz>
         <div class="viz-head"><h4>No sharing vs one big pot.</h4></div>
+        <p class="viz-sub">Average ROC-AUC across the four networks — higher is better.</p>
         <div class="rank"></div>
         <div class="foot">The pooled model scores 10 points <b>below</b> not sharing at all — despite having everyone's raw data.</div>
       </div>
@@ -340,12 +336,13 @@
     <!-- insight 4: personalisation -->
     <div class="result-block p1">
       <div class="rb-label"><span class="rb-num">04</span> Personalisation</div>
-      <h3 class="rb-title">Collaborative training thrives when networks retain a personalized layer.</h3>
-      <p class="rb-text">By sharing the core model but keeping a <b>localized decoder</b> for each network, the system adapts to individual environments <b>better</b>.</p>
+      <h3 class="rb-title">Collaborative training works when each network keeps its own decoder.</h3>
+      <p class="rb-text">By sharing the core model but keeping a <b>local decoder</b> for each network, the system adapts to individual environments <b>better</b>.</p>
       <div class="viz" id="viz-personal" data-viz>
-        <div class="viz-head"><h4>One personal layer flips pooling from worst to best.</h4></div>
+        <div class="viz-head"><h4>One local decoder flips pooling from worst to best.</h4></div>
+        <p class="viz-sub">Average ROC-AUC across the four networks — higher is better.</p>
         <div class="rank"></div>
-        <div class="foot">Sharing <em>plus</em> a personal layer beats both extremes — but it still needs all the raw data in <b>one place</b>.</div>
+        <div class="foot">Sharing <em>plus</em> a local decoder beats both extremes — but it still needs all the raw data in <b>one place</b>.</div>
       </div>
       <p class="fnote">Best of eight sharing/personalisation recipes tested; the other six fall in between.</p>
     </div>
@@ -362,8 +359,12 @@
       <p class="rb-text">The model travels, the data never does.</p>
       <div class="viz" id="viz-fedbest" data-viz>
         <div class="viz-head"><h4>Three ways to federate, from sharing everything to keeping a personal part.</h4></div>
+        <p class="viz-sub">Average ROC-AUC across the four networks — higher is better.</p>
         <div class="rank"></div>
-        <div class="foot">Keeping just the scaling settings local (<b>FedBN</b>) wins — beating even the best <b>centralised</b> model, which pools everyone's raw data in one place — and <b>halves</b> the false alarms of every alternative, down to 8.8%.</div>
+        <div class="foot"><b>FedBN — Federated Batch Normalisation — wins.</b> Each network keeps a few private
+          settings that record how big its “normal” traffic numbers are, and shares everything else — beating
+          even the best <b>centralised</b> model, and <b>halving</b> the false alarms of every alternative,
+          down to 8.8%.</div>
       </div>
       <p class="fnote">Averages over three training runs. An alternative averaging rule (FedProx) was also tested and never beat plain averaging.</p>
     </div>
@@ -372,14 +373,15 @@
     <div class="result-block p2">
       <div class="rb-label"><span class="rb-num">06</span> Generalisation</div>
       <h3 class="rb-title">Models trained together transfer better to brand-new networks.</h3>
-      <p class="rb-text">The hardest test: hold one network out entirely, train on the other three, then
-        deploy on the unseen one.</p>
+      <p class="rb-text">Hold one network out, train on the other three, then test on the network the
+        model has never seen.</p>
       <div class="viz" id="viz-transfer" data-viz>
         <div class="viz-head"><h4>Trained on three networks beats trained on one — every time.</h4></div>
+        <p class="viz-sub">Scores are ROC-AUC on the held-out network: 100 = perfect, 50 = a coin flip.</p>
         <div class="vleg"><span><i class="rnd" style="background:#aab6cf"></i> trained on 1 other network</span><span><i class="rnd" style="background:var(--violet)"></i> trained on the other 3</span><span><i class="dmd" style="background:var(--ink-2)"></i> ceiling: trained on the network itself</span></div>
         <div class="dumb"></div>
         <div class="axisrow"><span>40</span><span>ROC-AUC on the never-seen network</span><span>100</span></div>
-        <div class="foot">Three teachers beat one on every unseen network (up to <b>+31.6</b>%) — though a newcomer still needs local tuning to reach the ceiling (◆).</div>
+        <div class="foot">Three teachers beat one on every unseen network (up to <b>+31.6 points</b>) — though a newcomer still needs local tuning to reach the ceiling (◆).</div>
       </div>
     </div>
   </div>
@@ -396,11 +398,20 @@
         costs everything.</p>
     </div>
 
-    <div class="callout" style="border-left-color:var(--ok)">
-      <b>Masking the updates (SecAgg+): on by default.</b> Switching the masks on left detection
-      essentially unchanged on all four networks — the masks cancel out exactly in the coordinator's
-      average, so the model that comes out is the same one. Full protection against a curious
-      coordinator, at no cost.
+    <div class="priv">
+      <div class="card">
+        <span class="verdict free">SecAgg+ · masking — free</span>
+        <h3>Updates travel in disguise.</h3>
+        <p>Paired masks (+m and −m) hide every update, then cancel exactly in the coordinator's average.
+          No one can read a single network's update, and detection on all four networks:
+          <b style="color:var(--ok)">unchanged</b>. <b>On by default.</b></p>
+      </div>
+      <div class="card dp">
+        <span class="verdict costly">Differential privacy · noise — costly</span>
+        <h3>Noise buys a proof, and pays in detection.</h3>
+        <p>Random noise gives a provable privacy guarantee — but by the time it means anything,
+          detection has collapsed towards a coin flip. Measured below.</p>
+      </div>
     </div>
 
     <div class="viz" id="viz-dp" data-viz style="margin-top:26px">

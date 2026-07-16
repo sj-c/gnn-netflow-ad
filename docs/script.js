@@ -45,9 +45,9 @@ function onReveal(el, fn){
     var row=h('div','drow'), lab=h('div','dlab',r.n+'<small>'+r.s+'</small>'), tr=h('div','dtrack');
     tr.appendChild(h('span','flip')).style.left=X(50)+'%';
     var line=h('span','dline'); line.style.left=X(r.away)+'%'; tr.appendChild(line);
-    var pa=h('span','pt away'); pa.style.left=X(r.away)+'%'; pa.title=r.n+' on the other three networks: '+r.away; tr.appendChild(pa);
-    var ph=h('span','pt home'); ph.style.left=X(r.away)+'%'; ph.title=r.n+' on its own network: '+r.home; tr.appendChild(ph);
-    var va=h('span','dval dn',r.away.toFixed(1)); va.style.left=X(r.away)+'%'; tr.appendChild(va);
+    var pa=h('span','pt unfam'); pa.style.left=X(r.away)+'%'; pa.title=r.n+' on the other three networks (unfamiliar): '+r.away; tr.appendChild(pa);
+    var ph=h('span','pt home'); ph.style.left=X(r.away)+'%'; ph.title=r.n+' on its own network (familiar): '+r.home; tr.appendChild(ph);
+    var va=h('span','dval dn',r.away.toFixed(1)); va.style.left=X(r.away)+'%'; va.style.color='#E8462A'; va.style.fontWeight='600'; tr.appendChild(va);
     var vh=h('span','dval up',r.home.toFixed(1)); vh.style.left=X(r.away)+'%'; vh.style.color='#0f7d96'; vh.style.fontWeight='600'; tr.appendChild(vh);
     row.appendChild(lab); row.appendChild(tr); wrap.appendChild(row);
     anims.push(function(){ line.style.width=(X(r.home)-X(r.away))+'%'; ph.style.left=X(r.home)+'%'; vh.style.left=X(r.home)+'%'; });
@@ -104,9 +104,9 @@ function simpleBars(boxId, rows, cfg){
     var val=h('span','rval',r.v.toFixed(1)); val.style.left='10px'; tr.appendChild(val);
     if(cfg.inside){ val.style.color = r.cls==='lead' ? '#fff' : '#38445F'; val.style.fontWeight='600'; }
     (cfg.refs||[]).forEach(function(rf){
-      var ref=h('span','rref'); ref.style.left=X(rf.v)+'%';
+      var ref=h('span','rref'+(rf.cls?' '+rf.cls:'')); ref.style.left=X(rf.v)+'%';
       var labelRow = rf.on==='last' ? rows.length-1 : 0;
-      if(i===labelRow) ref.appendChild(h('span', rf.on==='last'?'below':'', rf.label+' · '+rf.v.toFixed(1)));
+      if(i===labelRow) ref.appendChild(h('span', (rf.on==='last'?'below ':'')+(rf.side==='left'?'left':''), rf.label+' · '+rf.v.toFixed(1)));
       tr.appendChild(ref);
     });
     bar.style.transitionDelay=(i*.25)+'s'; val.style.transitionDelay=(i*.25)+'s';
@@ -132,12 +132,12 @@ simpleBars('viz-personal',[
 ],{min:50,max:90});
 
 simpleBars('viz-fedbest',[
-  {n:'Share all except scaling', s:'FedBN — the animation’s recipe', v:85.2, cls:'lead'},
+  {n:'Share all except scaling', s:'FedBN — federated batch normalisation', v:85.2, cls:'lead'},
   {n:'Share encoder, keep decoder local', s:'FedRep', v:83.3},
   {n:'Share the whole model', s:'nothing kept personal', v:81.8}
 ],{min:50,max:90, inside:true, refs:[
-  {v:84.6,label:'best pooled'},
-  {v:83.3,label:'no sharing', on:'last'}
+  {v:84.6,label:'best centralised (pooled)',cls:'pool',side:'left'},
+  {v:83.3,label:'no sharing', on:'last',cls:'nos'}
 ]});
 
 /* =====================================================================
@@ -166,24 +166,6 @@ simpleBars('viz-fedbest',[
     var v1=h('span','dval dn',r.one.toFixed(1)); v1.style.left=X(r.one)+'%'; tr.appendChild(v1);
     row.appendChild(lab); row.appendChild(tr); wrap.appendChild(row);
     anims.push(function(){ line.style.width=(X(r.three)-X(r.one))+'%'; p3.style.left=X(r.three)+'%'; d.style.left=X(r.three)+'%'; });
-  });
-  onReveal(box,function(){ anims.forEach(function(f){f();}); });
-})();
-
-/* =====================================================================
-   6 · SecAgg mini deltas
-===================================================================== */
-(function(){
-  var box=document.getElementById('viz-secagg'); if(!box) return;
-  var rows=[ ['BoT-IoT',3.3],['UNSW',2.0],['ToN-IoT',0.5],['CICIDS',0.2] ];
-  var anims=[];
-  rows.forEach(function(r){
-    var row=h('div','md-row');
-    row.appendChild(h('span','',r[0]));
-    var trk=h('div','md-track'), fill=h('i','md-fill'); trk.appendChild(fill); row.appendChild(trk);
-    row.appendChild(h('span','md-val','+'+r[1].toFixed(1)));
-    box.appendChild(row);
-    anims.push(function(){ fill.style.width=(r[1]/20*100)+'%'; });
   });
   onReveal(box,function(){ anims.forEach(function(f){f();}); });
 })();
@@ -268,10 +250,11 @@ simpleBars('viz-fedbest',[
   txt(svg,326,152,'ENCODER',12.5,'#0f7d96','middle',700,true);
   txt(svg,326,170,'squeeze',10.5,MUT,'middle',400,true);
 
-  /* bottleneck: the tiny summary */
-  var mids=[122,152,182].map(function(y){ return s('rect',{x:404,y:y,width:26,height:22,rx:6,fill:VIO,opacity:0},svg); });
-  txt(svg,417,232,'tiny',10.5,VIO,'middle',600,true);
-  txt(svg,417,246,'summary',10.5,VIO,'middle',600,true);
+  /* bottleneck: the tiny summary (amber, like the profiles in the graph diagram) */
+  var SUM='#B07E1F';
+  var mids=[122,152,182].map(function(y){ return s('rect',{x:404,y:y,width:26,height:22,rx:6,fill:SUM,opacity:0},svg); });
+  txt(svg,417,232,'tiny',10.5,SUM,'middle',600,true);
+  txt(svg,417,246,'summary',10.5,SUM,'middle',600,true);
 
   /* decoder funnel */
   var dec=s('polygon',{points:'444,122 572,80 572,236 444,194',fill:'rgba(124,107,255,.10)',stroke:VIO,'stroke-width':1.6},svg);
@@ -354,6 +337,9 @@ simpleBars('viz-fedbest',[
   var capN=document.getElementById('pipe-cap-n'), capT=document.getElementById('pipe-cap-t'), cap=document.getElementById('pipe-cap');
   var roleEl=document.getElementById('pipe-role');
   var INK='#0F1830', MUT='#697691', SIG='#1BA5C4', VIO='#7C6BFF', ANOM='#FF6B4A', DIM='#C7D2E4';
+  /* encoder = cyan and decoder = violet, exactly as in the autoencoder demo above;
+     the encoder's two outputs get their own colours: device profiles amber, network summary magenta */
+  var PROF='#B07E1F', SUMM='#B03A8C';
 
   function g(id){ var e=s('g',{id:id,'class':'pel'},svg); return e; }
   var defs=s('defs',{},svg);
@@ -395,53 +381,86 @@ simpleBars('viz-fedbest',[
   });
   var gH=g('p-halos');
   N.forEach(function(p){
-    s('circle',{cx:p[0],cy:p[1],r:19,fill:'none',stroke:VIO,'stroke-width':3,opacity:.55,'class':'pulse-halo'},gH);
+    s('circle',{cx:p[0],cy:p[1],r:19,fill:'none',stroke:PROF,'stroke-width':3,opacity:.55,'class':'pulse-halo'},gH);
     /* tiny bar-chart chip = that device's behaviour profile */
     var bx=p[0]+14, by=p[1]-36;
-    s('rect',{x:bx,y:by,width:27,height:22,rx:5,fill:'#fff',stroke:VIO,'stroke-width':1.2},gH);
+    s('rect',{x:bx,y:by,width:27,height:22,rx:5,fill:'#fff',stroke:PROF,'stroke-width':1.2},gH);
     for(var i=0;i<3;i++){
       var hgt=5+((p[0]*(i+3)+p[1]*(i+1))%10);
-      s('rect',{x:bx+4+i*7,y:by+18-hgt,width:5,height:hgt,rx:1,fill:VIO,opacity:.8},gH);
+      s('rect',{x:bx+4+i*7,y:by+18-hgt,width:5,height:hgt,rx:1,fill:PROF,opacity:.8},gH);
     }
   });
-  txt(gH,372,330,'every device gets a behaviour profile: a small summary of how it usually acts',12.5,VIO,'start',600);
+  txt(gH,372,330,'every device gets a behaviour profile: a small summary of how it usually acts',12.5,PROF,'start',600);
+  /* side flow: one device → the ENCODER funnel → its profile — same shapes as the autoencoder demo */
+  txt(gH,740,128,'how each profile is made',11,MUT,'middle',500,true);
+  s('circle',{cx:668,cy:180,r:8,fill:'#fff',stroke:SIG,'stroke-width':3},gH);
+  s('line',{x1:641,y1:160,x2:654,y2:171,stroke:'#9DB1CD','stroke-width':2,'marker-end':'url(#mGrey)'},gH);
+  s('line',{x1:641,y1:202,x2:654,y2:190,stroke:'#9DB1CD','stroke-width':2,'marker-end':'url(#mGrey)'},gH);
+  s('line',{x1:682,y1:180,x2:696,y2:180,stroke:MUT,'stroke-width':1.6,'marker-end':'url(#pArr)'},gH);
+  s('polygon',{points:'702,146 754,168 754,192 702,214',fill:'rgba(27,165,196,.10)',stroke:SIG,'stroke-width':1.5},gH);
+  txt(gH,728,232,'ENCODER',10,'#0f7d96','middle',700,true);
+  txt(gH,728,245,'squeeze',8.5,MUT,'middle',400,true);
+  s('line',{x1:758,y1:180,x2:772,y2:180,stroke:MUT,'stroke-width':1.6,'marker-end':'url(#pArr)'},gH);
+  s('rect',{x:776,y:164,width:34,height:32,rx:5,fill:'#fff',stroke:PROF,'stroke-width':1.4},gH);
+  [9,15,12].forEach(function(hg,i){ s('rect',{x:781+i*8,y:192-hg,width:6,height:hg,rx:1,fill:PROF,opacity:.85},gH); });
+  txt(gH,793,214,'behaviour profile',8.5,PROF,'middle',600,true);
   N.forEach(function(p){ s('circle',{cx:p[0],cy:p[1],r:8,fill:'#fff',stroke:SIG,'stroke-width':3},gG); });
   var gGlab=txt(gG,372,306,'dots = devices · arrows = connections, sender → receiver',12.5,MUT,'start',500);
 
-  /* -- network summary -- */
+  /* -- network summary: connections → ENCODER funnel → one magenta summary box -- */
   var gC=g('p-ctx');
   E.slice(0,6).forEach(function(e){
     var mx=(N[e[0]][0]+N[e[1]][0])/2, my=(N[e[0]][1]+N[e[1]][1])/2;
-    s('path',{d:'M'+mx+' '+my+' Q 730 40 762 74',stroke:VIO,'stroke-width':1.3,'stroke-dasharray':'3 5',fill:'none',opacity:.6},gC);
+    s('path',{d:'M'+mx+' '+my+' Q 690 30 664 82',stroke:SIG,'stroke-width':1.3,'stroke-dasharray':'3 5',fill:'none',opacity:.55},gC);
   });
-  s('rect',{x:742,y:64,width:152,height:52,rx:12,fill:'rgba(124,107,255,.1)',stroke:VIO,'stroke-width':1.5},gC);
-  txt(gC,818,86,'network summary',13,VIO,'middle',600);
+  s('polygon',{points:'664,56 716,76 716,102 664,122',fill:'rgba(27,165,196,.10)',stroke:SIG,'stroke-width':1.5},gC);
+  txt(gC,690,152,'ENCODER',10,'#0f7d96','middle',700,true);
+  txt(gC,690,165,'squeeze',8.5,MUT,'middle',400,true);
+  s('line',{x1:720,y1:89,x2:736,y2:89,stroke:MUT,'stroke-width':1.6,'marker-end':'url(#pArr)'},gC);
+  s('rect',{x:742,y:64,width:152,height:52,rx:12,fill:'rgba(176,58,140,.10)',stroke:SUMM,'stroke-width':1.5},gC);
+  txt(gC,818,86,'network summary',13,SUMM,'middle',600);
   txt(gC,818,104,'all connections, averaged',10,MUT,'middle',400,true);
 
-  /* -- guess-vs-real panel, shared by steps 4 and 5 -- */
+  /* -- rebuild panel, shared by steps 4 and 5:
+        profiles + summary → DECODER funnel → the rebuild vs the real values, autoencoder-style -- */
   function panel(gp,title,rows,verdict,vcol,note){
-    s('rect',{x:618,y:136,width:244,height:190,rx:12,fill:'#F5F7FB',stroke:'#DCE3EF'},gp);
-    txt(gp,740,159,title,12.5,INK,'middle',600);
-    txt(gp,772,181,'rebuilt',10,VIO,'end',600,true);
-    txt(gp,848,181,'real',10,MUT,'end',600,true);
-    rows.forEach(function(r,i){
-      var y=204+i*24;
-      txt(gp,632,y,r[0],10.5,MUT,'start',500,true);
-      txt(gp,772,y,r[1],11.5,VIO,'end',600,true);
-      txt(gp,848,y,r[2],11.5,'#38445F','end',600,true);
+    s('rect',{x:612,y:136,width:282,height:192,rx:12,fill:'#F5F7FB',stroke:'#DCE3EF'},gp);
+    txt(gp,753,158,title,12.5,INK,'middle',600);
+    /* inputs: the two amber behaviour profiles + the magenta network summary */
+    [0,1].forEach(function(i){
+      var cy=172+i*27;
+      s('rect',{x:624,y:cy,width:28,height:21,rx:4,fill:'#fff',stroke:PROF,'stroke-width':1.2},gp);
+      for(var b2=0;b2<3;b2++){ var hg=5+((i*5+b2*7)%9); s('rect',{x:628+b2*8,y:cy+17-hg,width:6,height:hg,rx:1,fill:PROF,opacity:.85},gp); }
     });
-    txt(gp,632,286,verdict,12.5,vcol,'start',700);
-    if(note) txt(gp,632,306,note,9.5,MUT,'start',400,true);
+    s('rect',{x:624,y:226,width:28,height:21,rx:4,fill:'rgba(176,58,140,.12)',stroke:SUMM,'stroke-width':1.2},gp);
+    txt(gp,638,241,'Σ',11,SUMM,'middle',700,true);
+    /* decoder funnel — same shape and colour as the autoencoder demo */
+    s('polygon',{points:'660,198 704,174 704,244 660,220',fill:'rgba(124,107,255,.10)',stroke:VIO,'stroke-width':1.5},gp);
+    txt(gp,682,260,'DECODER',9.5,VIO,'middle',700,true);
+    txt(gp,682,272,'rebuild',8.5,MUT,'middle',400,true);
+    /* the rebuild (violet bars) against the real values (ink ticks) */
+    var BW2=104;
+    rows.forEach(function(r,i){
+      var y2=176+i*28;
+      txt(gp,760,y2+9,r[0],9.5,MUT,'end',500,true);
+      s('rect',{x:766,y:y2,width:BW2,height:11,rx:3,fill:'#EDF1F8'},gp);
+      s('rect',{x:766,y:y2,width:BW2*r[1],height:11,rx:3,fill:VIO},gp);
+      var tx2=766+BW2*r[2];
+      s('line',{x1:tx2,y1:y2-4,x2:tx2,y2:y2+15,stroke:INK,'stroke-width':2.2},gp);
+    });
+    txt(gp,766,270,'▮ rebuild · | real value',8.5,MUT,'start',500,true);
+    txt(gp,624,306,verdict,12.5,vcol,'start',700);
+    if(note) txt(gp,624,320,note,9.5,MUT,'start',400,true);
   }
 
   /* -- step 4: guess one connection's numbers -- */
   var gD=g('p-guess');
   var q0=N[E[GUESS][0]], q1=N[E[GUESS][1]], qx=(q0[0]+q1[0])/2, qy=(q0[1]+q1[1])/2;
-  s('circle',{cx:q0[0],cy:q0[1],r:13,fill:'none',stroke:VIO,'stroke-width':2.5},gD);
-  s('circle',{cx:q1[0],cy:q1[1],r:13,fill:'none',stroke:VIO,'stroke-width':2.5},gD);
-  s('path',{d:'M'+(qx+14)+' '+qy+' Q 585 231 614 231',stroke:MUT,'stroke-width':1.4,'stroke-dasharray':'4 4',fill:'none'},gD);
+  s('circle',{cx:q0[0],cy:q0[1],r:13,fill:'none',stroke:PROF,'stroke-width':2.5},gD);
+  s('circle',{cx:q1[0],cy:q1[1],r:13,fill:'none',stroke:PROF,'stroke-width':2.5},gD);
+  s('path',{d:'M'+(qx+14)+' '+qy+' Q 575 215 606 212',stroke:MUT,'stroke-width':1.4,'stroke-dasharray':'4 4',fill:'none'},gD);
   panel(gD,'rebuild this arrow’s numbers',
-    [['duration','0.41 s','0.42 s'],['packets','11','12'],['bytes','980 B','1,004 B']],
+    [['duration',.50,.53],['packets',.44,.47],['bytes',.52,.49]],
     '✓ close, looks normal','#0a8a52','using only the profiles + summary');
 
   /* -- step 5: compare & flag -- */
@@ -449,9 +468,9 @@ simpleBars('viz-fedbest',[
   var b0=N[E[BAD][0]], b1=N[E[BAD][1]], bx=(b0[0]+b1[0])/2, by=(b0[1]+b1[1])/2;
   s('circle',{cx:bx,cy:by,r:15,fill:ANOM},gS);
   txt(gS,bx,by+5,'!',15,'#fff','middle',700);
-  s('path',{d:'M'+(bx+18)+' '+(by+8)+' Q 600 138 616 165',stroke:'#E8462A','stroke-width':1.4,'stroke-dasharray':'4 4',fill:'none'},gS);
+  s('path',{d:'M'+(bx+18)+' '+(by+8)+' Q 596 150 608 176',stroke:'#E8462A','stroke-width':1.4,'stroke-dasharray':'4 4',fill:'none'},gS);
   panel(gS,'the flagged arrow’s numbers',
-    [['duration','0.4 s','47 s'],['packets','12','9,214'],['bytes','1 kB','9.6 MB']],
+    [['duration',.12,.88],['packets',.09,.95],['bytes',.11,.92]],
     '✗ wild miss → flagged','#E8462A','nothing it learned looks like this');
   txt(gS,22,306,'close rebuild = normal',12.5,MUT,'start',500);
   txt(gS,22,326,'wild miss = flagged',12.5,'#E8462A','start',600);
@@ -472,7 +491,7 @@ simpleBars('viz-fedbest',[
   var SHOW={
     1:{on:['p-table','p-arrow','p-graph'],dim:[]},
     2:{on:['p-graph','p-halos'],dim:['p-table','p-arrow']},
-    3:{on:['p-graph','p-ctx'],dim:['p-table','p-arrow','p-halos']},
+    3:{on:['p-graph','p-ctx'],dim:['p-table','p-arrow']},
     4:{on:['p-graph','p-ctx','p-guess'],dim:['p-table','p-arrow']},
     5:{on:['p-graph','p-score'],dim:['p-table','p-arrow','p-ctx']}
   };
@@ -584,7 +603,7 @@ simpleBars('viz-fedbest',[
     s('rect',{x:c.x+124,y:362,width:44,height:6,rx:3,fill:'#EDF1F8'},gc);
     c.prog=s('rect',{x:c.x+124,y:362,width:0,height:6,rx:3,fill:VIO},gc);
     c.bnChip=s('rect',{x:c.x+124,y:376,width:44,height:22,rx:8,fill:'rgba(124,107,255,.12)',stroke:VIO,'stroke-width':1.4},gc);
-    c.bnTxt=txt(gc,c.x+146,391,'BN',10,VIO,'middle',700,true);
+    c.bnTxt=txt(gc,c.x+146,391,'scaling',8.5,VIO,'middle',700,true);
     /* path to coordinator */
     paths.push(s('path',{d:'M'+c.cx+' 264 C '+c.cx+' 200, 480 180, 480 102',stroke:'#E4E9F3','stroke-width':1.6,fill:'none'},svg));
   });
@@ -688,10 +707,11 @@ simpleBars('viz-fedbest',[
     }
     if(id==='fedbn'){
       pk.forEach(function(p){ p.g.setAttribute('opacity',0); });
-      callout(480,150,['Step '+n.fedbn+T+' · FedBN: the scaling settings stay home',
-        'Every network’s traffic runs at its own typical volume.',
-        'The few settings that track that scale — the “BN” chip',
-        'below — are left out of what gets sent back.'],VIO);
+      callout(480,140,['Step '+n.fedbn+T+' · FedBN — Federated Batch Normalisation',
+        'A few settings in the model do just one job: record the',
+        'typical scale of local traffic — how big “normal” numbers',
+        'are on that network. FedBN keeps those scaling settings',
+        'home (the “scaling” chip below) instead of sharing them.'],VIO);
     }
     if(id==='keys'){
       pk.forEach(function(p){ p.g.setAttribute('opacity',0); });
@@ -719,7 +739,7 @@ simpleBars('viz-fedbest',[
       var rlines=['Step '+n.ret+T+' · Send back only the update',
         'Only what the model learned travels back,',
         'never any traffic data.'];
-      if(st.fedbn) rlines.push('(The BN scaling settings stay behind.)');
+      if(st.fedbn) rlines.push('(The local scaling settings stay behind.)');
       callout(480,150,rlines,SIG);
     }
     if(id==='avg'){

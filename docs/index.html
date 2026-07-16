@@ -135,7 +135,6 @@
           </tbody>
         </table>
       </div>
-      <div class="nf-eg"><div class="nf-cap">What one NetFlow record looks like</div></div>
     </div>
     <div class="ds">
       <div class="dscard">
@@ -213,17 +212,17 @@
 
     <div class="fields">
       <div class="eyebrow">What it needs</div>
-      <h3 style="margin:14px 0 10px"><b>Only</b> Seven fields needed per connection.</h3>
-      <p>The same connection metadata most router already exports.</p>
-      <div class="fstrip">
-        <div class="fs"><b>duration</b><span>how long it lasted</span></div>
-        <div class="fs"><b>packets</b><span>how many crossed</span></div>
-        <div class="fs"><b>bytes</b><span>how much data moved</span></div>
-        <div class="fs"><b>minimum TTL</b><span>roughly how far away the sender is</span></div>
-        <div class="fs"><b>protocol</b><span>the language spoken: TCP, UDP…</span></div>
-        <div class="fs"><b>source port</b><span>which service sent it</span></div>
-        <div class="fs"><b>dest port</b><span>what it's for: web, mail, DNS…</span></div>
-      </div>
+      <h3 style="margin:14px 0 10px"><b>Only</b> seven fields needed per connection.</h3>
+      <p>The same connection metadata most routers already export:</p>
+      <p class="fflow">
+        <span class="ff"><b>duration</b> <em>how long it lasted</em></span>
+        <span class="ff"><b>packets</b> <em>how many crossed</em></span>
+        <span class="ff"><b>bytes</b> <em>how much data moved</em></span>
+        <span class="ff"><b>minimum TTL</b> <em>roughly how far away the sender is</em></span>
+        <span class="ff"><b>protocol</b> <em>the language spoken: TCP, UDP…</em></span>
+        <span class="ff"><b>source port</b> <em>which service sent it</em></span>
+        <span class="ff"><b>dest port</b> <em>what it's for: web, mail, DNS…</em></span>
+      </p>
     </div>
   </div>
 </section>
@@ -267,10 +266,17 @@
     <div class="section-head">
       <div class="eyebrow">Results · six insights</div>
       <h2>What the experiments show.</h2>
+      <p class="lede">Six insights, split by the two ideas from the top: first the graph autoencoder
+        on its own, then what federated training adds.</p>
+    </div>
+
+    <div class="res-part rp1">
+      <span class="rp-k">Approach 1 · Graph autoencoder</span>
+      <h3>What a single, centralised detector can — and can't — do.</h3>
     </div>
 
     <!-- insight 1: the trade-off -->
-    <div class="result-block">
+    <div class="result-block p1">
       <div class="rb-label"><span class="rb-num">01</span> The trade-off</div>
       <h3 class="rb-title">The Balance Between Threat Detection and False Alarms.</h3>
       <p class="rb-text">Four detectors, each trained and tested on its own network. Every detector trades
@@ -283,25 +289,42 @@
     </div>
 
     <!-- insight 2: the domain gap + ROC-AUC intro -->
-    <div class="result-block">
+    <div class="result-block p1">
       <div class="rb-label"><span class="rb-num">02</span> The domain gap</div>
       <h3 class="rb-title">A model trained on one network fails on other networks.</h3>
       <p class="rb-text">Take each detector out of the network it was trained on and test it on the other
         three. It collapses: it learned <em>its own network's</em> habits, not a universal notion of
         normal traffic.</p>
       <div class="score-key"><b>The score used here: ROC-AUC.</b>  ROC-AUC grades how well
-        a detector <em>ranks</em> connections from least to most suspicious: <b>100</b> = every attack
-        ranked above every normal connection, <b>50</b> = 50% chance attack is ranked more suspicious than normal connection.</div>
+        a detector <em>ranks</em> connections from least to most suspicious — the more cleanly the
+        attacks end up at the suspicious end, the higher the score:
+        <div class="roc-demo" role="img" aria-label="Three rows of dots ranked from least to most suspicious: a perfect detector (score 100) puts every attack after every normal connection, a good detector (about 80) gets a few out of order, and a coin flip (50) mixes them randomly">
+          <div class="roc-row">
+            <div class="roc-lab">100 · perfect<small>every attack above every normal</small></div>
+            <div class="roc-dots"><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="a"></i><i class="a"></i><i class="a"></i><i class="a"></i><i class="a"></i><i class="a"></i><i class="a"></i></div>
+          </div>
+          <div class="roc-row">
+            <div class="roc-lab">~80 · a good detector<small>a few land out of order</small></div>
+            <div class="roc-dots"><i class="n"></i><i class="n"></i><i class="n"></i><i class="a"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="a"></i><i class="n"></i><i class="a"></i><i class="a"></i><i class="n"></i><i class="a"></i><i class="a"></i></div>
+          </div>
+          <div class="roc-row">
+            <div class="roc-lab">50 · coin flip<small>no better than guessing</small></div>
+            <div class="roc-dots"><i class="a"></i><i class="n"></i><i class="n"></i><i class="a"></i><i class="n"></i><i class="a"></i><i class="a"></i><i class="n"></i><i class="a"></i><i class="n"></i><i class="n"></i><i class="a"></i><i class="n"></i><i class="a"></i></div>
+          </div>
+          <div class="roc-axis"><span>least suspicious</span><span>ranked by the detector →</span><span>most suspicious</span></div>
+          <div class="roc-leg"><span><i style="background:var(--signal)"></i> normal connection</span><span><i style="background:var(--anomaly-deep)"></i> attack</span></div>
+        </div>
+      </div>
       <div class="viz" id="viz-homeaway" data-viz>
         <div class="viz-head"><h4>Same detector, familiar vs unfamiliar network.</h4></div>
-        <div class="vleg"><span><i class="rnd" style="background:var(--signal)"></i> tested on its own network</span><span><i class="rnd" style="background:#aab6cf"></i> tested on the other three (avg)</span><span><i style="background:none;border-left:2px dashed #c7d0e2;width:2px;border-radius:0"></i> coin flip (50)</span></div>
+        <div class="vleg"><span><i class="rnd" style="background:var(--signal)"></i> familiar — tested on its own network</span><span><i class="rnd" style="background:var(--anomaly-deep)"></i> unfamiliar — tested on the other three (avg)</span><span><i style="background:none;border-left:2px dashed #c7d0e2;width:2px;border-radius:0"></i> coin flip (50)</span></div>
         <div class="dumb"></div>
         <div class="foot">Every detector drops <b>9–49%</b> on networks it wasn't trained on.</div>
       </div>
     </div>
 
     <!-- insight 3: pooling backfires -->
-    <div class="result-block">
+    <div class="result-block p1">
       <div class="rb-label"><span class="rb-num">03</span> Negative transfer</div>
       <h3 class="rb-title">Simply pooling everyone's data makes a worse model.</h3>
       <p class="rb-text">The obvious fix — merge all four datasets and train one big model — backfires.
@@ -315,7 +338,7 @@
     </div>
 
     <!-- insight 4: personalisation -->
-    <div class="result-block">
+    <div class="result-block p1">
       <div class="rb-label"><span class="rb-num">04</span> Personalisation</div>
       <h3 class="rb-title">Collaborative training thrives when networks retain a personalized layer.</h3>
       <p class="rb-text">By sharing the core model but keeping a <b>localized decoder</b> for each network, the system adapts to individual environments <b>better</b>.</p>
@@ -327,21 +350,26 @@
       <p class="fnote">Best of eight sharing/personalisation recipes tested; the other six fall in between.</p>
     </div>
 
+    <div class="res-part rp2">
+      <span class="rp-k">Approach 2 · Federated learning</span>
+      <h3>Train together without pooling the data — and do even better.</h3>
+    </div>
+
     <!-- insight 5: federated -->
-    <div class="result-block">
+    <div class="result-block p2">
       <div class="rb-label"><span class="rb-num">05</span> Federated learning</div>
       <h3 class="rb-title">Federated training beats the pooled model — with zero data shared.</h3>
       <p class="rb-text">The model travels, the data never does.</p>
       <div class="viz" id="viz-fedbest" data-viz>
         <div class="viz-head"><h4>Three ways to federate, from sharing everything to keeping a personal part.</h4></div>
         <div class="rank"></div>
-        <div class="foot">Keeping just the scaling settings local (FedBN) wins — above even the pooled-data model — and cuts false alarms to <b>8.8%</b>, roughly half of every alternative.</div>
+        <div class="foot">Keeping just the scaling settings local (<b>FedBN</b>) wins — beating even the best <b>centralised</b> model, which pools everyone's raw data in one place — and <b>halves</b> the false alarms of every alternative, down to 8.8%.</div>
       </div>
       <p class="fnote">Averages over three training runs. An alternative averaging rule (FedProx) was also tested and never beat plain averaging.</p>
     </div>
 
     <!-- insight 6: generalisation -->
-    <div class="result-block">
+    <div class="result-block p2">
       <div class="rb-label"><span class="rb-num">06</span> Generalisation</div>
       <h3 class="rb-title">Models trained together transfer better to brand-new networks.</h3>
       <p class="rb-text">The hardest test: hold one network out entirely, train on the other three, then
@@ -368,13 +396,11 @@
         costs everything.</p>
     </div>
 
-    <div class="viz" data-viz>
-      <div class="viz-head"><h4>Masks on: the model barely changes.</h4><span class="pill good">on by default</span></div>
-      <p class="viz-sub">Change in ROC-AUC per network when SecAgg+ is switched on. The masks cancel out
-        exactly in the coordinator's average, so the model that comes out is essentially the same one.</p>
-      <div class="mini-deltas" id="viz-secagg"></div>
-      <div class="axisrow"><span>0</span><span>change in ROC-AUC points when masking is switched on</span><span>+20</span></div>
-      <div class="foot">Full protection against a curious coordinator, at no cost to detection — never worse, so it stays on.</div>
+    <div class="callout" style="border-left-color:var(--ok)">
+      <b>Masking the updates (SecAgg+): on by default.</b> Switching the masks on left detection
+      essentially unchanged on all four networks — the masks cancel out exactly in the coordinator's
+      average, so the model that comes out is the same one. Full protection against a curious
+      coordinator, at no cost.
     </div>
 
     <div class="viz" id="viz-dp" data-viz style="margin-top:26px">

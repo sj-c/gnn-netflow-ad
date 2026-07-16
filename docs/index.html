@@ -4,429 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Federated Graph Autoencoder for NetFlow Anomaly Detection</title>
-<meta name="description" content="A graph autoencoder that learns what normal network traffic looks like and flags what it can't explain — trained together by four organisations without sharing a single traffic record.">
+<meta name="description" content="A graph autoencoder that learns what normal network traffic looks like and flags what it can't explain, trained together by four organisations without sharing a single traffic record.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --paper:#F5F7FB;
-    --paper-2:#EDF1F8;
-    --card:#FFFFFF;
-    --ink:#0F1830;
-    --ink-2:#38445F;
-    --muted:#697691;
-    --line:#DCE3EF;
-    --hero-1:#080d1f;
-    --hero-2:#0f1b3e;
-    --hero-3:#132a54;
-    --signal:#1BA5C4;      /* benign flow / primary in light */
-    --signal-bright:#3FD3EE;/* benign flow on dark */
-    --anomaly:#FF6B4A;      /* flagged / reconstruction-error heat */
-    --anomaly-deep:#E8462A;
-    --violet:#7C6BFF;       /* federated / aggregation */
-    --ok:#12A36B;
-    --shadow:0 1px 2px rgba(15,24,48,.04),0 8px 30px rgba(15,24,48,.07);
-    --shadow-lg:0 30px 80px rgba(8,13,31,.45);
-    --maxw:1120px;
-  }
-  *{box-sizing:border-box}
-  html{scroll-behavior:smooth}
-  body{
-    margin:0;background:var(--paper);color:var(--ink);
-    font-family:"IBM Plex Sans",system-ui,sans-serif;
-    font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;
-    text-rendering:optimizeLegibility;
-  }
-  a{color:inherit}
-  img{max-width:100%;display:block}
-  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
-  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
-
-  /* ---------- eyebrow / structural labels ---------- */
-  .eyebrow{
-    font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500;
-    letter-spacing:.22em;text-transform:uppercase;color:var(--signal);
-    display:inline-flex;align-items:center;gap:.6em;
-  }
-  .eyebrow::before{content:"";width:26px;height:1px;background:var(--signal);opacity:.6}
-  .eyebrow.on-dark{color:var(--signal-bright)}
-  .eyebrow.on-dark::before{background:var(--signal-bright)}
-
-  h1,h2,h3{font-family:"Space Grotesk",sans-serif;font-weight:600;line-height:1.08;letter-spacing:-.015em;margin:0}
-  h2{font-size:clamp(28px,4.2vw,44px)}
-  h3{font-size:22px;letter-spacing:-.01em}
-  p{margin:0 0 1em}
-  .lede{font-size:clamp(18px,2.2vw,22px);line-height:1.55;color:var(--ink-2)}
-
-  /* ============ NAV ============ */
-  nav{
-    position:sticky;top:0;z-index:50;
-    background:rgba(9,14,31,.72);backdrop-filter:blur(14px);
-    border-bottom:1px solid rgba(255,255,255,.08);
-  }
-  nav .wrap{display:flex;align-items:center;gap:22px;height:60px}
-  .brand{font-family:"Space Grotesk",sans-serif;font-weight:600;color:#fff;font-size:15px;letter-spacing:-.01em;white-space:nowrap}
-  .brand span{color:var(--signal-bright)}
-  .navlinks{margin-left:auto;display:flex;gap:26px;align-items:center}
-  .navlinks a{font-family:"IBM Plex Mono",monospace;font-size:12.5px;letter-spacing:.04em;color:#aab6d4;text-decoration:none;transition:color .18s}
-  .navlinks a:hover{color:#fff}
-  .navlinks .gh{color:#fff;border:1px solid rgba(255,255,255,.22);padding:6px 13px;border-radius:7px}
-  .navlinks .gh:hover{border-color:var(--signal-bright);background:rgba(63,211,238,.08)}
-  @media(max-width:720px){.navlinks a:not(.gh){display:none}}
-
-  /* ============ HERO ============ */
-  .hero{
-    position:relative;overflow:hidden;color:#eaf0ff;
-    background:
-      radial-gradient(1200px 600px at 78% -10%,rgba(63,211,238,.16),transparent 60%),
-      radial-gradient(900px 700px at 12% 110%,rgba(124,107,255,.16),transparent 55%),
-      linear-gradient(160deg,var(--hero-1),var(--hero-2) 60%,var(--hero-3));
-  }
-  #flowcanvas{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:.9}
-  .hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:52px 52px;mask-image:radial-gradient(circle at 50% 35%,#000,transparent 78%)}
-  .hero .wrap{position:relative;z-index:2;padding:74px 28px 78px;min-height:min(90vh,760px);display:flex;flex-direction:column;justify-content:center}
-  .hero h1{
-    font-size:clamp(34px,6.2vw,68px);font-weight:600;color:#fff;
-    letter-spacing:-.025em;line-height:1.02;max-width:16ch;margin:22px 0 0;
-  }
-  .hero h1 .hl{
-    background:linear-gradient(90deg,var(--signal-bright),#9fe9f6);
-    -webkit-background-clip:text;background-clip:text;color:transparent;
-  }
-  .hero .sub{max-width:60ch;margin:24px 0 0;font-size:clamp(16px,2vw,20px);color:#b9c6e6;line-height:1.55}
-  .hero .anom-word{color:var(--anomaly);font-weight:500}
-  .cta-row{display:flex;flex-wrap:wrap;gap:14px;margin-top:34px}
-  .btn{
-    font-family:"IBM Plex Mono",monospace;font-size:13.5px;letter-spacing:.02em;
-    text-decoration:none;padding:12px 20px;border-radius:9px;display:inline-flex;align-items:center;gap:9px;
-    transition:transform .16s ease,box-shadow .16s ease,background .16s;font-weight:500;
-  }
-  .btn-primary{background:var(--signal-bright);color:#062028;font-weight:600}
-  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(63,211,238,.35)}
-  .btn-ghost{color:#dfe7fb;border:1px solid rgba(255,255,255,.2)}
-  .btn-ghost:hover{border-color:#fff;transform:translateY(-2px)}
-
-  /* metric strip */
-  .metrics{
-    position:relative;z-index:2;
-    border-top:1px solid rgba(255,255,255,.1);
-    background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0));
-  }
-  .metrics .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:0;min-height:0;padding:0 28px}
-  .metric{padding:22px 26px 24px;border-left:1px solid rgba(255,255,255,.08)}
-  .metric:first-child{border-left:none;padding-left:0}
-  .metric .v{font-family:"Space Grotesk",sans-serif;font-size:clamp(26px,3.4vw,36px);font-weight:600;color:#fff;letter-spacing:-.02em;line-height:1}
-  .metric .v small{font-size:.5em;color:var(--signal-bright);font-weight:500;margin-left:2px}
-  .metric .k{font-family:"IBM Plex Sans",sans-serif;font-size:14px;line-height:1.4;letter-spacing:0;color:#aebcda;margin-top:11px}
-  .metric .k b{color:#e7eeff;font-weight:600}
-  @media(max-width:760px){.metrics .wrap{grid-template-columns:repeat(2,1fr)}.metric{border-left:none;padding:20px 0}.metric:nth-child(odd){padding-right:20px}.metric:nth-child(even){border-left:1px solid rgba(255,255,255,.08);padding-left:22px}}
-
-  /* ============ SECTIONS ============ */
-  section{padding:88px 0;scroll-margin-top:72px}
-  .section-head{max-width:70ch;margin-bottom:44px}
-  .section-head h2{margin-top:16px}
-  .section-head p{margin-top:16px}
-  .alt{background:
-      linear-gradient(180deg,var(--paper-2),var(--paper) 40%);
-  }
-  .rule{height:1px;background:var(--line);border:0;margin:0}
-
-  /* problem cards */
-  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-  @media(max-width:820px){.cols3{grid-template-columns:1fr}}
-  .cols4{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
-  @media(max-width:820px){.cols4{grid-template-columns:1fr}}
-  .card{
-    background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 24px;
-    box-shadow:var(--shadow);
-  }
-  .card .tag{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-  .card h3{margin:14px 0 10px;font-size:19px}
-  .card p{font-size:15.5px;color:var(--ink-2);margin:0}
-  .card .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:16px}
-
-  /* figure card */
-  figure{margin:0}
-  .fig{
-    background:var(--card);border:1px solid var(--line);border-radius:16px;
-    box-shadow:var(--shadow);overflow:hidden;
-  }
-  .fig .fig-body{padding:22px}
-  .fig img{margin:0 auto;border-radius:6px}
-  .fig figcaption{
-    border-top:1px solid var(--line);padding:14px 20px;
-    font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--muted);
-    display:flex;gap:12px;align-items:baseline;
-  }
-  .fig figcaption b{color:var(--signal);font-weight:600;white-space:nowrap}
-  .fig-wide{grid-column:1/-1}
-
-  /* pipeline stage navigation */
-  .stage-nav{
-    position:absolute;top:42%;transform:translateY(-50%);z-index:6;width:44px;height:44px;border-radius:50%;
-    border:1px solid var(--line);background:rgba(255,255,255,.94);box-shadow:var(--shadow);cursor:pointer;
-    font-size:17px;color:var(--ink-2);display:grid;place-items:center;
-    transition:border-color .15s,color .15s,background .15s;
-  }
-  .stage-nav:hover{border-color:var(--signal);color:var(--signal)}
-  .stage-nav.prev{left:14px}.stage-nav.next{right:14px}
-  .stage-dots{margin-left:auto;display:flex;gap:8px;align-items:center;flex:none;align-self:center}
-  .stage-dots button{width:10px;height:10px;border-radius:50%;border:0;background:#c9d3e4;cursor:pointer;padding:0;transition:background .2s,transform .2s}
-  .stage-dots button.on{background:var(--signal);transform:scale(1.3)}
-  .stage-cap .capbody{flex:1}
-  .stage-cap .capbody b{color:var(--ink);font-weight:600}
-
-  /* just seven fields */
-  .f7{display:grid;grid-template-columns:.85fr 1.15fr;gap:44px;align-items:center;margin-top:56px}
-  @media(max-width:900px){.f7{grid-template-columns:1fr;gap:26px}}
-  .f7-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-  @media(max-width:520px){.f7-grid{grid-template-columns:1fr}}
-  .fld{display:flex;gap:12px;align-items:baseline;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 15px;box-shadow:var(--shadow)}
-  .fld b{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--signal);font-weight:600;white-space:nowrap}
-  .fld span{font-size:13.5px;color:var(--ink-2);line-height:1.45}
-
-  .two{display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center}
-  @media(max-width:900px){.two{grid-template-columns:1fr;gap:32px}}
-  .feat{list-style:none;padding:0;margin:20px 0 0}
-  .feat li{position:relative;padding:14px 0 14px 30px;border-top:1px solid var(--line);font-size:15.5px;color:var(--ink-2)}
-  .feat li:first-child{border-top:none}
-  .feat li::before{content:"";position:absolute;left:0;top:20px;width:10px;height:10px;border-radius:3px;background:var(--signal);transform:rotate(45deg)}
-  .feat li b{color:var(--ink);font-weight:600}
-  .feat li .mono{color:var(--anomaly-deep);font-size:13.5px}
-
-  /* result narrative blocks */
-  .result-block{padding:44px 0;border-top:1px solid var(--line)}
-  .result-block:first-of-type{border-top:none;padding-top:8px}
-  .rb-label{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:12px;margin-bottom:16px}
-  .rb-num{font-family:"Space Grotesk",sans-serif;font-size:14px;font-weight:600;color:#fff;background:var(--ink);width:30px;height:30px;border-radius:8px;display:inline-grid;place-items:center;letter-spacing:0}
-  .result-block:nth-child(4) .rb-num{background:var(--signal)}
-  .rb-title{font-family:"Space Grotesk",sans-serif;font-size:clamp(22px,3vw,30px);font-weight:600;letter-spacing:-.015em;max-width:22ch;margin:0 0 14px}
-  .rb-text{font-size:16.5px;color:var(--ink-2);max-width:74ch;margin:0}
-  .rb-text b{color:var(--ink);font-weight:600}
-
-  /* results table */
-  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);background:var(--card)}
-  table{border-collapse:collapse;width:100%;min-width:560px;font-size:15px}
-  th,td{padding:14px 18px;text-align:left}
-  thead th{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500;border-bottom:1px solid var(--line);background:var(--paper-2)}
-  tbody td{border-bottom:1px solid var(--line)}
-  tbody tr:last-child td{border-bottom:none}
-  td.num{font-family:"IBM Plex Mono",monospace;text-align:right;font-variant-numeric:tabular-nums}
-  tr.best{background:linear-gradient(90deg,rgba(27,165,196,.09),rgba(27,165,196,.02))}
-  tr.best td:first-child{position:relative}
-  tr.best td:first-child::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--signal)}
-  .best-pill{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#fff;background:var(--signal);padding:2px 7px;border-radius:20px;margin-left:8px;vertical-align:middle}
-  .best-arrow-up{color:var(--ok)}
-  .best-arrow-down{color:var(--signal)}
-
-  /* datasets */
-  .ds{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-  @media(max-width:820px){.ds{grid-template-columns:repeat(2,1fr)}}
-  @media(max-width:480px){.ds{grid-template-columns:1fr}}
-  .dscard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:var(--shadow)}
-  .dscard .name{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:17px}
-  .dscard .env{font-family:"IBM Plex Sans",sans-serif;font-size:13.5px;line-height:1.4;color:var(--ink-2);letter-spacing:0;margin-top:6px}
-  .bar{height:7px;border-radius:6px;background:var(--paper-2);margin:18px 0 8px;overflow:hidden;display:flex}
-  .bar .benign{background:var(--signal)}
-  .bar .attack{background:var(--anomaly)}
-  .dscard .split{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-2);display:flex;justify-content:space-between}
-  .dscard .split .a{color:var(--anomaly-deep)}
-  .legend{display:flex;gap:20px;margin-top:22px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted)}
-  .legend span{display:inline-flex;align-items:center;gap:7px}
-  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
-
-  /* privacy split */
-  .priv{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:36px}
-  @media(max-width:820px){.priv{grid-template-columns:1fr}}
-  .priv .card{border-top:4px solid var(--ok)}
-  .priv .card.dp{border-top-color:var(--anomaly)}
-  .verdict{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500;letter-spacing:.04em;padding:4px 10px;border-radius:20px;display:inline-block;margin-bottom:6px}
-  .verdict.free{color:#0a6b45;background:rgba(18,163,107,.12)}
-  .verdict.costly{color:var(--anomaly-deep);background:rgba(255,107,74,.12)}
-
-  /* takeaways */
-  .takeaways{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
-  @media(max-width:720px){.takeaways{grid-template-columns:1fr}}
-  .tk{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 26px 28px;box-shadow:var(--shadow);position:relative}
-  .tk-n{font-family:"Space Grotesk",sans-serif;font-size:13px;font-weight:600;color:var(--signal);letter-spacing:.05em;margin-bottom:14px}
-  .tk h3{font-size:19px;margin:0 0 10px}
-  .tk p{font-size:15px;color:var(--ink-2);margin:0}
-
-  .callout{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--anomaly);border-radius:12px;padding:18px 22px;margin-top:26px;font-size:15px;color:var(--ink-2)}
-  .callout b{color:var(--ink)}
-
-  /* ============ INTERACTIVE FIGURES ============ */
-  .viz{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:26px 26px 20px;margin-top:26px}
-  .viz-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:4px}
-  .viz-head h4{font-family:"Space Grotesk",sans-serif;font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0}
-  .pill{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;padding:3px 10px;border-radius:20px;white-space:nowrap}
-  .pill.good{color:#0a6b45;background:rgba(18,163,107,.12)}
-  .pill.bad{color:var(--anomaly-deep);background:rgba(255,107,74,.12)}
-  .viz-sub{font-size:14px;color:var(--muted);margin:0 0 18px;max-width:78ch}
-  .viz .foot{border-top:1px solid var(--line);margin-top:18px;padding-top:13px;font-size:14px;color:var(--ink-2)}
-  .viz .foot b{color:var(--ink)}
-  .viz .foot .fl{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--signal);margin-right:8px}
-  .vleg{display:flex;flex-wrap:wrap;gap:14px 20px;margin:0 0 16px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-2)}
-  .vleg i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:7px;vertical-align:-1px}
-  .vleg i.rnd{border-radius:50%}
-  .vleg i.dmd{transform:rotate(45deg);border-radius:2px}
-  .axisrow{display:flex;justify-content:space-between;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);margin-top:8px}
-  .score-key{background:var(--paper-2);border:1px solid var(--line);border-radius:12px;padding:16px 20px;font-size:14.5px;color:var(--ink-2);margin-top:22px;max-width:78ch}
-  .score-key b{color:var(--ink)}
-
-  /* dumbbell / arrow rows */
-  .drow{display:grid;grid-template-columns:170px 1fr;gap:16px;align-items:center;padding:8px 0}
-  .drow+.drow{border-top:1px dashed var(--line)}
-  .drow.avg{background:linear-gradient(90deg,rgba(27,165,196,.05),transparent);border-radius:8px}
-  .dlab{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:14.5px;text-align:right;line-height:1.25}
-  .dlab small{display:block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted);font-weight:400;margin-top:2px}
-  .dtrack{position:relative;height:52px}
-  .dtrack .flip{position:absolute;top:4px;bottom:4px;border-left:2px dashed #c7d0e2}
-  .dline{position:absolute;top:50%;height:3px;width:0;background:#c9d3e4;border-radius:2px;transform:translateY(-50%);transition:width 1s cubic-bezier(.22,.8,.24,1)}
-  .dline.arr{background:linear-gradient(90deg,#c9d3e4,var(--violet))}
-  .dline.arr::after{content:"";position:absolute;right:-2px;top:50%;transform:translateY(-50%);border-left:8px solid var(--violet);border-top:5px solid transparent;border-bottom:5px solid transparent;opacity:0;transition:opacity .3s .7s}
-  .in .dline.arr::after{opacity:1}
-  .pt{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 3px var(--card);transition:left 1s cubic-bezier(.22,.8,.24,1)}
-  .pt.away{background:#aab6cf}
-  .pt.home{background:var(--signal)}
-  .pt.newm{background:var(--violet)}
-  .bench{position:absolute;top:50%;width:11px;height:11px;background:var(--ink-2);transform:translate(-50%,-50%) rotate(45deg);border-radius:2px}
-  .dval{position:absolute;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-2);transform:translateX(-50%);white-space:nowrap;transition:left 1s cubic-bezier(.22,.8,.24,1)}
-  .dval.up{top:0}.dval.dn{bottom:0}
-  .dval.delta{color:#0a8a52;font-weight:600;opacity:0;transition:opacity .4s .8s,left 1s cubic-bezier(.22,.8,.24,1)}
-  .in .dval.delta{opacity:1}
-  @media(max-width:640px){.drow{grid-template-columns:1fr;gap:2px}.dlab{text-align:left}}
-
-  /* paired bars */
-  .pb-row{display:grid;grid-template-columns:170px 1fr;gap:16px;align-items:center;padding:10px 0}
-  .pb-row+.pb-row{border-top:1px dashed var(--line)}
-  .pb{position:relative;height:22px;background:var(--paper-2);border-radius:6px}
-  .pb+.pb{margin-top:7px}
-  .pb i{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:6px;transition:width 1.1s cubic-bezier(.22,.8,.24,1)}
-  .pb i.catch{background:var(--signal)}
-  .pb i.alarm{background:var(--anomaly)}
-  .pb b{position:absolute;top:50%;transform:translateY(-50%);font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:500;white-space:nowrap;transition:left 1.1s cubic-bezier(.22,.8,.24,1)}
-  @media(max-width:640px){.pb-row{grid-template-columns:1fr;gap:4px}.pb-row .dlab{text-align:left}}
-
-  /* ranked rows (with sortable metric toggle) */
-  .seg{display:inline-flex;background:var(--paper-2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:3px;margin:0 0 16px}
-  .seg button{font-family:"IBM Plex Mono",monospace;font-size:12px;padding:7px 13px;border:0;background:transparent;border-radius:7px;color:var(--muted);cursor:pointer;transition:color .15s}
-  .seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
-  .rrow{display:grid;grid-template-columns:minmax(150px,240px) 1fr;gap:16px;align-items:center;padding:7px 0;transition:transform .55s cubic-bezier(.22,.8,.24,1)}
-  .rlab{text-align:right;font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:13.5px;line-height:1.25}
-  .rlab small{display:block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted);font-weight:400;margin-top:1px}
-  .rtrack{position:relative;height:24px}
-  .rbar{position:absolute;top:4px;bottom:4px;left:0;width:0;background:#c9d3e4;border-radius:5px;transition:width .9s cubic-bezier(.22,.8,.24,1)}
-  .rrow.lead .rbar{background:var(--signal)}
-  .rrow.worst .rbar{background:var(--anomaly)}
-  .rrow.base .rbar{background:var(--violet)}
-  .rval{position:absolute;top:50%;transform:translateY(-50%);font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-2);white-space:nowrap;transition:left .9s cubic-bezier(.22,.8,.24,1)}
-  .rref{position:absolute;top:-4px;bottom:-4px;border-left:2px dashed var(--ink-2);opacity:.55}
-  .rref span{position:absolute;top:-2px;left:6px;font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--muted);white-space:nowrap}
-  .whisk{position:absolute;top:50%;height:2px;background:currentColor;transform:translateY(-50%);opacity:.45}
-  .whisk::before,.whisk::after{content:"";position:absolute;top:-4px;height:10px;width:2px;background:currentColor}
-  .whisk::before{left:0}.whisk::after{right:0}
-  .wdot{position:absolute;top:50%;width:13px;height:13px;border-radius:50%;transform:translate(-50%,-50%);background:currentColor;box-shadow:0 0 0 3px var(--card)}
-  @media(max-width:640px){.rrow{grid-template-columns:1fr;gap:2px}.rlab{text-align:left}}
-
-  /* mini delta bars (SecAgg) */
-  .mini-deltas{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
-  .md-row{display:grid;grid-template-columns:64px 1fr 52px;gap:10px;align-items:center;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);padding:3px 0}
-  .md-track{position:relative;height:10px;background:var(--paper-2);border-radius:5px;overflow:hidden}
-  .md-fill{position:absolute;top:0;bottom:0;left:0;width:0;background:var(--ok);border-radius:5px;transition:width .9s cubic-bezier(.22,.8,.24,1)}
-  .md-val{color:#0a6b45;text-align:right}
-
-  /* pipeline interactive stage */
-  .stage{position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;margin-top:22px}
-  .stage svg{display:block;width:100%;height:auto}
-  .stage-cap{border-top:1px solid var(--line);padding:15px 22px;font-size:15px;color:var(--ink-2);display:flex;gap:12px;align-items:baseline;min-height:56px}
-  .stage-cap .n{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--signal);font-weight:600;white-space:nowrap}
-  .pel{opacity:0;transition:opacity .55s ease}
-  .pel.on{opacity:1}
-  .pipe-edge{transition:stroke .5s,stroke-width .5s,opacity .55s}
-  .pulse-halo{animation:halo 2.2s ease-in-out infinite}
-  @keyframes halo{0%,100%{opacity:.25}50%{opacity:.7}}
-
-  /* federated round simulator */
-  .fr-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-top:1px solid var(--line);padding:14px 22px;background:var(--paper-2)}
-  .fr-controls .lbl{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:2px}
-  .tgl{font-family:"IBM Plex Mono",monospace;font-size:12px;padding:7px 13px;border-radius:20px;border:1px solid var(--line);background:var(--card);color:var(--muted);cursor:pointer;transition:all .15s}
-  .tgl.on{border-color:var(--violet);color:var(--violet);background:rgba(124,107,255,.08);font-weight:600}
-  .playbtn{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;padding:7px 15px;border-radius:8px;border:1px solid var(--signal);background:var(--signal);color:#fff;cursor:pointer}
-  .fr-round{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-2);background:var(--card);border:1px solid var(--line);border-radius:20px;padding:6px 13px}
-
-  /* footer */
-  footer{background:linear-gradient(160deg,var(--hero-1),var(--hero-2));color:#c3cfea;padding:64px 0 40px}
-  footer .wrap{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:34px}
-  @media(max-width:720px){footer .wrap{grid-template-columns:1fr}}
-  footer h4{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7b8bb3;margin:0 0 16px;font-weight:500}
-  footer .ft-brand{font-family:"Space Grotesk",sans-serif;font-size:20px;color:#fff;font-weight:600;letter-spacing:-.01em}
-  footer p{font-size:14.5px;color:#9fabca;margin:12px 0 0;max-width:36ch}
-  footer a{color:#c3cfea;text-decoration:none;display:block;padding:5px 0;font-size:14.5px;transition:color .15s}
-  footer a:hover{color:var(--signal-bright)}
-  footer .fine{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.08);margin-top:20px;padding-top:22px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:#6b7aa0;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
-
-  /* ===== problem → solution flow map ===== */
-  .probmap{position:relative;margin-top:10px}
-  .ob-links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
-  .ob-row{display:grid;grid-template-columns:repeat(4,1fr);gap:26px;position:relative;z-index:2}
-  @media(max-width:820px){.ob-row{grid-template-columns:repeat(2,1fr);gap:24px 18px}}
-  .ob{text-align:center;padding:6px 4px;cursor:default;opacity:0;transform:translateY(14px);
-    transition:transform .5s cubic-bezier(.22,.8,.24,1),opacity .5s}
-  .probmap.in .ob{opacity:1;transform:none}
-  .probmap.in .ob:nth-child(2){transition-delay:.08s}
-  .probmap.in .ob:nth-child(3){transition-delay:.16s}
-  .probmap.in .ob:nth-child(4){transition-delay:.24s}
-  .ob .ic{width:54px;height:54px;margin:0 auto 13px;border-radius:16px;display:grid;place-items:center;
-    background:rgba(255,107,74,.1);color:var(--anomaly-deep);
-    transition:background .2s,color .2s,transform .2s,box-shadow .2s}
-  .ob h3{font-size:16.5px;line-height:1.25;letter-spacing:-.01em}
-  .ob p{font-size:13.5px;color:var(--muted);margin:8px auto 0;max-width:24ch;line-height:1.5}
-  .ob .goes{display:none;font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.06em;margin-top:9px;font-weight:600}
-  .ob[data-to="fixA"] .goes{color:var(--signal)}
-  .ob[data-to="fixB"] .goes{color:var(--violet)}
-  .ob.hot .ic{transform:scale(1.12);background:var(--anomaly);color:#fff;box-shadow:0 8px 22px rgba(255,107,74,.32)}
-
-  .fix-row{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:118px;position:relative;z-index:2}
-  @media(max-width:820px){.fix-row{grid-template-columns:1fr;margin-top:28px;gap:16px}}
-  .fix{display:block;text-decoration:none;border-radius:18px;padding:24px 26px;position:relative;
-    opacity:0;transform:translateY(14px);
-    transition:transform .3s,box-shadow .3s,border-color .3s,opacity .5s}
-  .probmap.in .fix{opacity:1;transform:none;transition-delay:.4s}
-  .probmap.in .fix+.fix{transition-delay:.52s}
-  .fix.fixA{background:linear-gradient(135deg,rgba(27,165,196,.1),rgba(27,165,196,.02));border:1.5px solid rgba(27,165,196,.35)}
-  .fix.fixB{background:linear-gradient(135deg,rgba(124,107,255,.1),rgba(124,107,255,.02));border:1.5px solid rgba(124,107,255,.35)}
-  .fix .fx-k{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
-  .fixA .fx-k{color:var(--signal)}.fixB .fx-k{color:var(--violet)}
-  .fix h3{font-size:21px;margin:10px 0 8px}
-  .fix p{font-size:14.5px;color:var(--ink-2);margin:0;max-width:46ch}
-  .fix .fx-go{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;display:inline-block;margin-top:14px;transition:transform .2s}
-  .fixA .fx-go{color:var(--signal)}.fixB .fx-go{color:var(--violet)}
-  .fix:hover{transform:translateY(-3px)}
-  .fixA:hover,.fixA.hot{border-color:var(--signal);box-shadow:0 12px 34px rgba(27,165,196,.18)}
-  .fixB:hover,.fixB.hot{border-color:var(--violet);box-shadow:0 12px 34px rgba(124,107,255,.18)}
-  .fix:hover .fx-go{transform:translateX(4px)}
-  @media(max-width:820px){.ob-links{display:none}.ob .goes{display:block}}
-  .ps-hint{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);text-align:center;margin:26px 0 0;opacity:.8}
-  .ps-hint b{color:var(--signal)}
-
-  /* ===== netflow example table ===== */
-  .nf-eg{margin-top:30px}
-  .nf-eg .nf-cap{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 12px;display:flex;align-items:center;gap:9px}
-  .nf-eg .nf-cap::before{content:"";width:22px;height:1px;background:var(--muted);opacity:.6}
-  .nf-table{overflow-x:auto;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);background:var(--card)}
-  .nf-table table{min-width:640px;font-size:14px}
-  .nf-table th{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;border-bottom:1px solid var(--line);background:var(--paper-2);padding:11px 16px;text-align:left;white-space:nowrap}
-  .nf-table td{padding:11px 16px;border-bottom:1px solid var(--line);font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-2);white-space:nowrap}
-  .nf-table tr:last-child td{border-bottom:none}
-  .nf-table td.dots{color:var(--muted);letter-spacing:.15em}
-  .nf-note{font-size:13.5px;color:var(--muted);margin:12px 0 0}
-  .nf-note b{color:var(--ink-2);font-weight:600}
-
-  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}.ob,.fix{opacity:1!important;transform:none!important}}
-  :focus-visible{outline:2px solid var(--signal);outline-offset:2px;border-radius:4px}
-</style>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
@@ -438,7 +20,6 @@
       <a href="#pipeline">Solution</a>
       <a href="#federated">Federated</a>
       <a href="#results">Results</a>
-      <a href="#takeaways">Takeaways</a>
       <a class="gh" href="https://github.com/sj-c/gnn-netflow-ad" target="_blank" rel="noopener">GitHub ↗</a>
     </div>
   </div>
@@ -449,13 +30,13 @@
   <canvas id="flowcanvas" aria-hidden="true"></canvas>
   <div class="hero-grid" aria-hidden="true"></div>
   <div class="wrap">
-    <h1>Stop unseen cyberattacks — <span class="hl">without sharing</span> your network data.</h1>
+    <h1>Stop unseen cyberattacks <span class="hl">without sharing</span> your network data.</h1>
     <p class="sub">
       Signature-based tools only catch attacks they've already seen, so a brand-new one slips
       straight past. Learning what <em>normal</em> looks like and flagging the
-      <span class="anom-word">unusual</span> works better — but no one organisation sees enough
+      <span class="anom-word">unusual</span> works better, but no one organisation sees enough
       traffic to learn it, and that traffic is too sensitive to pool. So four organisations train
-      one detector <em>together</em>, each keeping its data at home.
+      one detector <em>together</em>, each keeping its data <span class="anom-word">private</span>.
     </p>
     <div class="cta-row">
       <a class="btn btn-primary" href="#pipeline">See the solution →</a>
@@ -465,9 +46,9 @@
   <div class="metrics">
     <div class="wrap">
       <div class="metric"><div class="v">4 <span style="color:var(--signal-bright);font-size:.6em;vertical-align:.12em">→</span> 1</div><div class="k"><b>Four organisations</b> team up on one shared detector</div></div>
-      <div class="metric"><div class="v">0</div><div class="k">Traffic records they had to hand over to do it — <b>zero, ever</b></div></div>
-      <div class="metric"><div class="v">78<small>%</small></div><div class="k">Of real attacks caught by the shared detector <b>· best setup</b></div></div>
-      <div class="metric"><div class="v">92k<small>/sec</small></div><div class="k">Connections screened every second — <b>no fancy hardware needed</b></div></div>
+      <div class="metric"><div class="v">0</div><div class="k">Traffic records <b>shared</b></div></div>
+      <div class="metric"><div class="v">78<small>%</small></div><div class="k">Of real attacks caught by the shared detector </div></div>
+      <div class="metric"><div class="v">92k<small>/sec</small></div><div class="k">Connections screened every second: <b>CPU only</b></div></div>
     </div>
   </div>
 </header>
@@ -478,8 +59,8 @@
     <div class="section-head">
       <div class="eyebrow">The problem</div>
       <h2>Why new attacks still slip through.</h2>
-      <p class="lede">Four obstacles block the obvious approaches — and they pair up neatly with the
-        two ideas this project combines.</p>
+      <p class="lede">Four obstacles block the obvious approaches, <b>mitigated</b> by the
+        two approaches this project combines.</p>
     </div>
 
     <div class="probmap" id="probmap">
@@ -488,7 +69,7 @@
         <div class="ob" data-to="fixA" tabindex="0">
           <div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M10 9.3a2 2 0 1 1 2.6 1.9c-.5.2-.6.6-.6 1.1v.4"/><circle cx="12" cy="15.6" r="0.35" fill="currentColor"/></svg></div>
           <h3>No signature to match</h3>
-          <p>A brand-new attack has never been seen — there's nothing to look it up against.</p>
+          <p>A brand-new attack has never been seen, so there's nothing to look it up against.</p>
           <div class="goes">↳ idea 1</div>
         </div>
         <div class="ob" data-to="fixA" tabindex="0">
@@ -500,33 +81,33 @@
         <div class="ob" data-to="fixB" tabindex="0">
           <div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8c2-3.5 4 3.5 6 0s4 3.5 6 0 4 3.5 6 0"/><path d="M3 17h3l2-5 3 8 2-5h8"/></svg></div>
           <h3>Every network is different</h3>
-          <p>"Normal" at a bank looks nothing like "normal" in a smart factory.</p>
+          <p>"Normal" at a bank looks nothing like "normal" in a factory.</p>
           <div class="goes">↳ idea 2</div>
         </div>
         <div class="ob" data-to="fixB" tabindex="0">
           <div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.2"/></svg></div>
           <h3>Traffic can't be pooled</h3>
-          <p>Flow records reveal who talks to whom inside a network — no one can hand them over.</p>
+          <p>Flow records reveal who talks to whom inside a network, so no one share them publicly.</p>
           <div class="goes">↳ idea 2</div>
         </div>
       </div>
 
       <div class="fix-row">
         <a class="fix fixA" id="fixA" href="#pipeline">
-          <span class="fx-k">Idea 1 · graph autoencoder</span>
+          <span class="fx-k">Approach 1 · graph autoencoder</span>
           <h3>Study normal, flag the strange</h3>
-          <p>The model trains only on everyday traffic and flags whatever doesn't fit — no signatures, no attack labels needed.</p>
+          <p>The model trains only on everyday traffic and flags whatever doesn't fit: no signatures, no attack labels needed.</p>
           <span class="fx-go">See how it works ↓</span>
         </a>
         <a class="fix fixB" id="fixB" href="#federated">
-          <span class="fx-k">Idea 2 · federated learning</span>
+          <span class="fx-k">Approach 2 · federated learning</span>
           <h3>Train together, keep data home</h3>
-          <p>Four organisations improve one shared detector by exchanging only model updates — never a single traffic record.</p>
+          <p>Four organisations improve one shared detector by exchanging only model updates, never a single traffic record.</p>
           <span class="fx-go">See how it works ↓</span>
         </a>
       </div>
     </div>
-    <p class="ps-hint">Hover an obstacle to trace <b>which idea knocks it down</b> — click an idea to jump straight to it.</p>
+    <p class="ps-hint">Hover an obstacle to trace <b>which idea knocks it down</b>. Click an idea to jump straight to it.</p>
   </div>
 </section>
 
@@ -534,11 +115,11 @@
 <section class="alt" id="datasets">
   <div class="wrap">
     <div class="section-head">
-      <div class="eyebrow">The proving ground</div>
+      <div class="eyebrow">Putting It to the Test</div>
       <h2>Four very different networks.</h2>
-      <p class="lede">Each record is one <b>NetFlow</b> log — who talked to whom, for how long, and how much
+      <p class="lede">Each record is one <b>NetFlow</b> log: who talked to whom, for how long, and how much
         data, never the contents. The detector is tested on four public NetFlow benchmarks, each standing in
-        for one organisation, chosen to differ in every way that matters.</p>
+        for one organisation.</p>
     </div>
 
     <div class="nf-eg">
@@ -546,7 +127,7 @@
       <div class="nf-table">
         <table>
           <thead>
-            <tr><th>Source</th><th>Destination</th><th>Proto</th><th>Duration</th><th>Packets</th><th>Bytes</th><th>…</th></tr>
+            <tr><th>Source</th><th>Destination</th><th>Protocol</th><th>Duration</th><th>Packets</th><th>Bytes</th><th>…</th></tr>
           </thead>
           <tbody>
             <tr><td>10.0.0.14</td><td>172.16.2.9</td><td>TCP</td><td>0.42 s</td><td>12</td><td>1,004</td><td class="dots">…</td></tr>
@@ -554,8 +135,7 @@
           </tbody>
         </table>
       </div>
-      <p class="nf-note">Just <b>metadata about each connection</b> — no message contents. A handful of numeric
-        and categorical fields per flow; the detector turns thousands of these into the graph it scores.</p>
+      <div class="nf-eg"><div class="nf-cap">What one NetFlow record looks like</div></div>
     </div>
     <div class="ds">
       <div class="dscard">
@@ -596,40 +176,53 @@
     <div class="section-head">
       <div class="eyebrow">The model</div>
       <h2>Connection logs in, suspicion scores out.</h2>
-      <p class="lede">The detector is a graph autoencoder — think of it as a very good guesser. Trained
-        only on normal traffic, it covers up each connection's numbers and tries to guess them from
-        the context around it. When reality lands far from its guess, it's looking at something it
-        has never seen — and that connection gets flagged.</p>
+      <p class="lede">The detector is built from one core idea, the <b>autoencoder</b>, plus one twist,
+        the <b>graph</b>.</p>
+    </div>
+
+    <div class="ae-intro">
+      <p>An autoencoder is a model with two halves. The <b class="enc-w">encoder</b> squeezes the input
+        down to a tiny summary. The <b class="dec-w">decoder</b> rebuilds the input from that summary
+        alone. Train it on <b>normal</b> traffic and it becomes an expert at rebuilding normal traffic.</p>
+    </div>
+    <div class="stage ae-stage" id="ae-demo">
+      <svg id="ae-svg" viewBox="0 0 920 320" role="img" aria-label="Animated autoencoder: a connection's numbers are squeezed by the encoder into a tiny summary, rebuilt by the decoder, and the rebuild is compared against the real numbers"></svg>
+      <div class="ae-controls">
+        <button class="ae-btn on" id="ae-normal">▶ Feed it a normal connection</button>
+        <button class="ae-btn" id="ae-attack">▶ Feed it something it's never seen</button>
+        <span class="ae-cap" id="ae-cap"></span>
+      </div>
+    </div>
+
+    <div class="bridge">
+      <h3>Now put it on a graph.</h3>
     </div>
 
     <div class="stage" id="pipe-stage" aria-label="Animated pipeline diagram">
       <button class="stage-nav prev" id="pipe-prev" aria-label="Previous step">←</button>
       <button class="stage-nav next" id="pipe-next" aria-label="Next step">→</button>
-      <svg viewBox="0 0 920 360" role="img" aria-label="Diagram showing connection records becoming a directed graph, device profiles, a network summary, guessed connection values and one flagged anomaly" id="pipe-svg"></svg>
+      <svg viewBox="0 0 920 360" role="img" aria-label="Diagram showing connection records becoming a directed graph, device profiles, a network summary, rebuilt connection values and one flagged anomaly" id="pipe-svg"></svg>
       <div class="stage-cap">
         <span class="n" id="pipe-cap-n">STEP 1 / 5</span>
-        <span class="capbody"><b id="pipe-cap-t">Draw the graph.</b> <span id="pipe-cap">Take 1,000 connection records and turn them into a directed graph — each device a dot, each connection an arrow from sender to receiver.</span></span>
+        <span class="role-chip" id="pipe-role"></span>
+        <span class="capbody"><b id="pipe-cap-t">Draw the graph.</b> <span id="pipe-cap">Take 1,000 connection records and turn them into a directed graph: each device a dot, each connection an arrow from sender to receiver.</span></span>
         <div class="stage-dots" id="pipe-dots" aria-label="Go to step"></div>
       </div>
     </div>
     <noscript><figure class="fig" style="margin-top:22px"><div class="fig-body"><img src="assets/pipeline.png" alt="Graph Autoencoder pipeline diagram"></div></figure></noscript>
 
-    <div class="f7">
-      <div>
-        <div class="eyebrow">What it needs</div>
-        <h3 style="margin:14px 0 10px">Just seven fields per connection.</h3>
-        <p style="color:var(--ink-2);font-size:15.5px;margin:0">That's the whole ingredient list — the same
-          connection metadata any router already exports (the table in the section above). No message
-          contents, no software installed on anyone's devices.</p>
-      </div>
-      <div class="f7-grid">
-        <div class="fld"><b>duration</b><span>how long the connection lasted</span></div>
-        <div class="fld"><b>packets</b><span>how many packets crossed</span></div>
-        <div class="fld"><b>bytes</b><span>how much data moved</span></div>
-        <div class="fld"><b>min TTL</b><span>a rough hint of how far away the sender is</span></div>
-        <div class="fld"><b>protocol</b><span>the language spoken — TCP, UDP…</span></div>
-        <div class="fld"><b>source port</b><span>which service sent it</span></div>
-        <div class="fld"><b>dest port</b><span>which service it was for — web, mail, DNS…</span></div>
+    <div class="fields">
+      <div class="eyebrow">What it needs</div>
+      <h3 style="margin:14px 0 10px"><b>Only</b> Seven fields needed per connection.</h3>
+      <p>The same connection metadata most router already exports.</p>
+      <div class="fstrip">
+        <div class="fs"><b>duration</b><span>how long it lasted</span></div>
+        <div class="fs"><b>packets</b><span>how many crossed</span></div>
+        <div class="fs"><b>bytes</b><span>how much data moved</span></div>
+        <div class="fs"><b>minimum TTL</b><span>roughly how far away the sender is</span></div>
+        <div class="fs"><b>protocol</b><span>the language spoken: TCP, UDP…</span></div>
+        <div class="fs"><b>source port</b><span>which service sent it</span></div>
+        <div class="fs"><b>dest port</b><span>what it's for: web, mail, DNS…</span></div>
       </div>
     </div>
   </div>
@@ -640,18 +233,25 @@
   <div class="wrap">
     <div class="section-head">
       <div class="eyebrow">Federated learning</div>
-      <h2>Train together. Keep your data.</h2>
-      <p class="lede">Built on Flower, one client per organisation. Each round, the coordinator hands out
-        one shared model, every organisation trains it on data that never leaves home, and only the model
-        updates travel back. Press play — every step is explained right on the diagram, where it happens.</p>
+      <h2>Train together. Keep your data private.</h2>
+      <p class="lede">
+        Instead of moving sensitive data to the model, we <b>move the model to the data</b>. 
+        This keeps private network logs entirely local while building a powerful, shared defense:
+      </p>
+
+      <ul  class="lede">
+        <li><b>Distribute:</b> A coordinator sends the global model to each organization.</li>
+        <li><b>Train:</b> Each organization trains the model locally using its own private traffic.</li>
+        <li><b>Aggregate:</b> They send back only what the model learned—never the raw network logs.</li>
+      </ul>
     </div>
 
     <div class="stage" id="fedround">
-      <svg viewBox="0 0 960 430" role="img" aria-label="Animated diagram of one federated learning round: the coordinator sends a model to four organisations, each trains on traffic logs that stay behind a fence, and only model updates — optionally masked or noised — travel back to be averaged" id="fr-svg"></svg>
+      <svg viewBox="0 0 960 430" role="img" aria-label="Animated diagram of one federated learning round: the coordinator sends a model to four organisations, each trains on traffic logs that stay behind a fence, and only model updates, optionally masked or noised, travel back to be averaged" id="fr-svg"></svg>
       <div class="fr-controls">
         <button class="playbtn" id="fr-play" aria-pressed="false">▶ Play</button>
         <span class="lbl">Options:</span>
-        <button class="tgl on" id="tg-fedbn" aria-pressed="true">Keep BN local (FedBN)</button>
+        <button class="tgl on" id="tg-fedbn" aria-pressed="true">Keep scaling local (FedBN)</button>
         <button class="tgl" id="tg-secagg" aria-pressed="false">Mask updates (SecAgg+)</button>
         <button class="tgl" id="tg-dp" aria-pressed="false">Add noise (DP)</button>
         <span class="fr-round" id="fr-round">Round 1 of 50</span>
@@ -665,122 +265,93 @@
 <section id="results">
   <div class="wrap">
     <div class="section-head">
-      <div class="eyebrow">Results · the argument in four steps</div>
+      <div class="eyebrow">Results · six insights</div>
       <h2>What the experiments show.</h2>
-      <p class="lede">The results build a case. A model trained on one network doesn't transfer. Naively pooling
-        everyone's data makes it worse. Federating <em>does</em> help — but only once each client keeps its
-        own normalisation. And even then, a brand-new network still needs a local touch.</p>
-      <div class="score-key"><b>How to read the numbers.</b> <b>Detection score</b> runs 0–100: at 100 the
-        detector ranks every attack above every normal connection; at 50 it's no better than a coin flip.
-        <b>Attacks caught</b> is the share of real attacks it flags. <b>False alarms</b> is the share of
-        normal traffic it wrongly flags — the number that decides whether a security team can actually live
-        with the tool.</div>
     </div>
 
-    <!-- step 1: local baselines -->
+    <!-- insight 1: the trade-off -->
     <div class="result-block">
-      <div class="rb-label"><span class="rb-num">01</span> The domain gap</div>
-      <h3 class="rb-title">One model per network is strong at home, weak everywhere else.</h3>
-      <p class="rb-text">Each dataset-specific detector separates attacks well on its own traffic — within-dataset
-        ranking runs from 0.722 on BoT-IoT to 0.946 on CICIDS. Point the same model at another network and
-        performance falls off a cliff: cross-dataset ROC-AUC averages just 0.45–0.69, several barely above a
-        coin flip. The model learned each environment's quirks, not a universal notion of "normal traffic."</p>
-      <div class="viz" id="viz-homeaway" data-viz>
-        <div class="viz-head"><h4>Strong at home, near coin-flip away.</h4><span class="pill bad">the domain gap</span></div>
-        <p class="viz-sub">Each network's own detector, tested on its own traffic (<b style="color:var(--signal)">cyan</b>)
-          vs the same detector pointed at the other three networks (grey, averaged). The dashed line is a coin flip.</p>
-        <div class="vleg"><span><i class="rnd" style="background:var(--signal)"></i> tested at home</span><span><i class="rnd" style="background:#aab6cf"></i> tested away (avg)</span><span><i style="background:none;border-left:2px dashed #c7d0e2;width:2px;border-radius:0"></i> coin flip (50)</span></div>
-        <div class="dumb"></div>
-        <div class="axisrow"><span>40</span><span>detection score</span><span>100</span></div>
-        <div class="foot"><span class="fl">Takeaway</span>Every detector loses 9 to 49 points the moment it leaves home. "Normal traffic" is not one thing — each network has its own.</div>
-      </div>
+      <div class="rb-label"><span class="rb-num">01</span> The trade-off</div>
+      <h3 class="rb-title">The Balance Between Threat Detection and False Alarms.</h3>
+      <p class="rb-text">Four detectors, each trained and tested on its own network. Every detector trades
+        the same two things off: <b>attacks caught</b> against <b>normal traffic wrongly flagged</b>.</p>
       <div class="viz" id="viz-caught" data-viz>
-        <div class="viz-head"><h4>Catching attacks is easy. Staying quiet is hard.</h4><span class="pill bad">the false-alarm problem</span></div>
-        <p class="viz-sub">The same four home detectors: how many real attacks they catch, and how much normal
-          traffic they wrongly flag while doing it.</p>
+        <div class="viz-head"><h4>Attacks caught vs false alarms, per network.</h4></div>
         <div class="pbars"></div>
-        <div class="foot"><span class="fl">Takeaway</span>BoT-IoT looks like the star — <b>96% of attacks caught</b> — until you see it also flags <b>41% of normal traffic</b>. On a real network that's thousands of false alerts a day, and the tool gets switched off.</div>
+        <div class="foot">BoT-IoT catches <b>96%</b> of attacks but wrongly flags <b>41%</b> of its normal traffic; UNSW almost never false-alarms <b>5%</b> but misses <b>30%</b> of attacks.</div>
       </div>
     </div>
 
-    <!-- step 2: centralised pooling -->
+    <!-- insight 2: the domain gap + ROC-AUC intro -->
     <div class="result-block">
-      <div class="rb-label"><span class="rb-num">02</span> The obvious fix that fails</div>
-      <h3 class="rb-title">Simply pooling all the data makes things worse.</h3>
-      <p class="rb-text">The intuitive answer is to merge every dataset into one big training set. It backfires. A
-        single combined model scores a macro-average ROC-AUC of ~0.734 — <em>below</em> the average of the four
-        local models — and keeps high false-alarm rates on most datasets. This is negative transfer: one shared
-        representation and one shared scaler blur the real differences between networks. Personalising the
-        decoder or the batch-norm helps some clients but no single centralised variant wins everywhere.</p>
-      <div class="viz" id="viz-central" data-viz>
-        <div class="viz-head"><h4>"One big pot" comes dead last.</h4><span class="pill bad">negative transfer</span></div>
-        <p class="viz-sub">Eight ways to combine four networks' data in one place, ranked. Every fix that gives each
-          network back something of its own beats the fully-shared pot. Switch the ranking to see false alarms.</p>
-        <div class="seg" role="tablist"><button class="on" data-metric="score">Detection score</button><button data-metric="alarms">False alarms</button></div>
-        <div class="rank"></div>
-        <div class="axisrow"><span>50 (coin flip)</span><span class="axcap">detection score, average of all four networks</span><span class="axmax">90</span></div>
-        <div class="foot"><span class="fl">Takeaway</span>Even the <b>best</b> pooled recipe only just beats "no sharing at all" — and it needs everyone's raw data on one machine, which is exactly what privacy rules forbid. That dead end is why the project turns to federated learning.</div>
-      </div>
-    </div>
-
-    <!-- step 3: federated -->
-    <div class="result-block">
-      <div class="rb-label"><span class="rb-num">03</span> The solution that works</div>
-      <h3 class="rb-title">Federate the shared parts, keep normalisation local.</h3>
-      <p class="rb-text">Federated learning shares knowledge without sharing data — and the winning recipe is
-        <b>FedAvg + FedBN</b>: average the network, but let each client keep its own batch-norm to absorb its
-        traffic's scale. It posts the best ranking and F1 <em>and</em> the lowest false-alarm rate. Versus the
-        local baselines it lifts macro ROC-AUC ~2 points and F1 ~7 points while roughly halving false alarms.
-        Sharing <em>everything</em> (no personalisation) is markedly weaker, and FedProx's proximal constraint
-        didn't beat plain FedAvg here.</p>
-
-      <div class="tablewrap" style="margin-top:26px">
-        <table>
-          <thead>
-            <tr><th>Aggregation / personalisation</th><th style="text-align:right">ROC-AUC ↑</th><th style="text-align:right">F1 ↑</th><th style="text-align:right">FPR ↓</th></tr>
-          </thead>
-          <tbody>
-            <tr class="best"><td>FedAvg&nbsp;/&nbsp;FedBN<span class="best-pill">best</span></td><td class="num">0.852</td><td class="num">0.831</td><td class="num">0.088</td></tr>
-            <tr><td>FedProx&nbsp;/&nbsp;FedBN</td><td class="num">0.848</td><td class="num">0.817</td><td class="num">0.095</td></tr>
-            <tr><td>FedProx&nbsp;/&nbsp;FedRep</td><td class="num">0.837</td><td class="num">0.796</td><td class="num">0.148</td></tr>
-            <tr><td>FedAvg&nbsp;/&nbsp;FedRep</td><td class="num">0.833</td><td class="num">0.804</td><td class="num">0.148</td></tr>
-            <tr><td>FedAvg&nbsp;/&nbsp;none</td><td class="num">0.818</td><td class="num">0.747</td><td class="num">0.140</td></tr>
-            <tr><td>FedProx&nbsp;/&nbsp;none</td><td class="num">0.773</td><td class="num">0.733</td><td class="num">0.203</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="mono" style="font-size:12.5px;color:var(--muted);margin-top:14px">Macro-average across the four datasets, three seeds. Threshold set by Youden's J on the ROC curve.</p>
-
-      <div class="viz" id="viz-fed" data-viz>
-        <div class="viz-head"><h4>FedAvg + FedBN wins on both counts.</h4><span class="pill good">best configuration</span></div>
-        <p class="viz-sub">All six federated recipes, ranked. The dot is the average over three runs; the bar shows
-          run-to-run spread. The dashed marker is the best centralised recipe from the previous chart — the one that
-          needed pooled raw data.</p>
-        <div class="seg" role="tablist"><button class="on" data-metric="score">Detection score</button><button data-metric="alarms">False alarms</button></div>
-        <div class="rank"></div>
-        <div class="axisrow"><span class="axmin">72</span><span class="axcap">detection score, average of all four networks</span><span class="axmax">90</span></div>
-        <div class="foot"><span class="fl">Takeaway</span>Sharing everything (plain rows) is the weakest way to federate. Let each network keep just its own <b>scaling</b> (FedBN) and the federation beats the pooled-data model — <b>without any raw data changing hands</b>, and with roughly half the false alarms.</div>
-      </div>
-    </div>
-
-    <!-- step 4: cross-dataset -->
-    <div class="result-block">
-      <div class="rb-label"><span class="rb-num">04</span> The honest caveat</div>
-      <h3 class="rb-title">It transfers better to unseen networks — but not for free.</h3>
-      <p class="rb-text">In a leave-one-dataset-out test, a model trained on three networks generalises to the
-        held-out fourth better than any single-source transfer — for <em>all four</em> datasets. The jumps are
-        largest on CICIDS (+31.6) and UNSW (+22.3), moving each point toward the same-network benchmark ceiling.
-        But the gap shrinks, it doesn't close: held-out BoT-IoT and CICIDS still fire far too many false alarms.
-        A new organisation joining the federation would still need local calibration before going live.</p>
-      <div class="viz" id="viz-transfer" data-viz>
-        <div class="viz-head"><h4>Three teachers beat one — on every new network.</h4><span class="pill good">generalisation</span></div>
-        <p class="viz-sub">Each row is a network the model has <em>never seen</em>. Grey dot: taught by one other
-          network. Violet dot: taught by the other three together. The arrow is the improvement; the dark diamond is
-          the ceiling — a detector trained on that network's own data.</p>
-        <div class="vleg"><span><i class="rnd" style="background:#aab6cf"></i> taught by 1 network</span><span><i class="rnd" style="background:var(--violet)"></i> taught by 3 networks</span><span><i class="dmd" style="background:var(--ink-2)"></i> home-trained ceiling</span></div>
+      <div class="rb-label"><span class="rb-num">02</span> The domain gap</div>
+      <h3 class="rb-title">A model trained on one network fails on other networks.</h3>
+      <p class="rb-text">Take each detector out of the network it was trained on and test it on the other
+        three. It collapses: it learned <em>its own network's</em> habits, not a universal notion of
+        normal traffic.</p>
+      <div class="score-key"><b>The score used here: ROC-AUC.</b>  ROC-AUC grades how well
+        a detector <em>ranks</em> connections from least to most suspicious: <b>100</b> = every attack
+        ranked above every normal connection, <b>50</b> = 50% chance attack is ranked more suspicious than normal connection.</div>
+      <div class="viz" id="viz-homeaway" data-viz>
+        <div class="viz-head"><h4>Same detector, familiar vs unfamiliar network.</h4></div>
+        <div class="vleg"><span><i class="rnd" style="background:var(--signal)"></i> tested on its own network</span><span><i class="rnd" style="background:#aab6cf"></i> tested on the other three (avg)</span><span><i style="background:none;border-left:2px dashed #c7d0e2;width:2px;border-radius:0"></i> coin flip (50)</span></div>
         <div class="dumb"></div>
-        <div class="axisrow"><span>40</span><span>detection score on the never-seen network</span><span>100</span></div>
-        <div class="foot"><span class="fl">Takeaway</span>Learning from three different networks adds up to <b>+31.6 points</b> on a brand-new one — real progress toward a detector a new organisation could adopt. But the arrows never quite reach the diamonds: a newcomer still needs some local tuning before going live.</div>
+        <div class="foot">Every detector drops <b>9–49%</b> on networks it wasn't trained on.</div>
+      </div>
+    </div>
+
+    <!-- insight 3: pooling backfires -->
+    <div class="result-block">
+      <div class="rb-label"><span class="rb-num">03</span> Negative transfer</div>
+      <h3 class="rb-title">Simply pooling everyone's data makes a worse model.</h3>
+      <p class="rb-text">The obvious fix — merge all four datasets and train one big model — backfires.
+        Four very different "normals" blur into a vague average that fits nobody. This is
+        <b>negative transfer</b>.</p>
+      <div class="viz" id="viz-pool" data-viz>
+        <div class="viz-head"><h4>No sharing vs one big pot.</h4></div>
+        <div class="rank"></div>
+        <div class="foot">The pooled model scores 10 points <b>below</b> not sharing at all — despite having everyone's raw data.</div>
+      </div>
+    </div>
+
+    <!-- insight 4: personalisation -->
+    <div class="result-block">
+      <div class="rb-label"><span class="rb-num">04</span> Personalisation</div>
+      <h3 class="rb-title">Collaborative training thrives when networks retain a personalized layer.</h3>
+      <p class="rb-text">By sharing the core model but keeping a <b>localized decoder</b> for each network, the system adapts to individual environments <b>better</b>.</p>
+      <div class="viz" id="viz-personal" data-viz>
+        <div class="viz-head"><h4>One personal layer flips pooling from worst to best.</h4></div>
+        <div class="rank"></div>
+        <div class="foot">Sharing <em>plus</em> a personal layer beats both extremes — but it still needs all the raw data in <b>one place</b>.</div>
+      </div>
+      <p class="fnote">Best of eight sharing/personalisation recipes tested; the other six fall in between.</p>
+    </div>
+
+    <!-- insight 5: federated -->
+    <div class="result-block">
+      <div class="rb-label"><span class="rb-num">05</span> Federated learning</div>
+      <h3 class="rb-title">Federated training beats the pooled model — with zero data shared.</h3>
+      <p class="rb-text">The model travels, the data never does.</p>
+      <div class="viz" id="viz-fedbest" data-viz>
+        <div class="viz-head"><h4>Three ways to federate, from sharing everything to keeping a personal part.</h4></div>
+        <div class="rank"></div>
+        <div class="foot">Keeping just the scaling settings local (FedBN) wins — above even the pooled-data model — and cuts false alarms to <b>8.8%</b>, roughly half of every alternative.</div>
+      </div>
+      <p class="fnote">Averages over three training runs. An alternative averaging rule (FedProx) was also tested and never beat plain averaging.</p>
+    </div>
+
+    <!-- insight 6: generalisation -->
+    <div class="result-block">
+      <div class="rb-label"><span class="rb-num">06</span> Generalisation</div>
+      <h3 class="rb-title">Models trained together transfer better to brand-new networks.</h3>
+      <p class="rb-text">The hardest test: hold one network out entirely, train on the other three, then
+        deploy on the unseen one.</p>
+      <div class="viz" id="viz-transfer" data-viz>
+        <div class="viz-head"><h4>Trained on three networks beats trained on one — every time.</h4></div>
+        <div class="vleg"><span><i class="rnd" style="background:#aab6cf"></i> trained on 1 other network</span><span><i class="rnd" style="background:var(--violet)"></i> trained on the other 3</span><span><i class="dmd" style="background:var(--ink-2)"></i> ceiling: trained on the network itself</span></div>
+        <div class="dumb"></div>
+        <div class="axisrow"><span>40</span><span>ROC-AUC on the never-seen network</span><span>100</span></div>
+        <div class="foot">Three teachers beat one on every unseen network (up to <b>+31.6</b>%) — though a newcomer still needs local tuning to reach the ceiling (◆).</div>
       </div>
     </div>
   </div>
@@ -791,33 +362,25 @@
   <div class="wrap">
     <div class="section-head">
       <div class="eyebrow">Privacy mechanisms</div>
-      <h2>Two defences, two very different price tags.</h2>
-      <p class="lede">Keeping raw data local isn't automatically private — model updates leak too. The project
-        adds two protections, and measures what each one costs in detection quality.</p>
+      <h2>Masking is free. Noise is not.</h2>
+      <p class="lede">The two privacy options from the animation, measured. <b>Masking the updates</b>
+        (SecAgg+) costs nothing. <b>Adding noise</b> for a provable guarantee (differential privacy)
+        costs everything.</p>
     </div>
 
-    <div class="priv">
-      <div class="card">
-        <span class="verdict free">≈ free</span>
-        <h3>Secure aggregation · SecAgg+</h3>
-        <p>Each organisation hides its update behind a secret mask before sending. The masks are built in pairs that cancel out when everything is added up — so the coordinator gets the correct <b>total</b> but can never read any single organisation's update. The maths of the average is unchanged, so detection barely moves:</p>
-        <div class="mini-deltas" id="viz-secagg" data-viz aria-label="Change in detection score with secure aggregation turned on, per network"></div>
-        <p style="margin:10px 0 0;font-size:13px;color:var(--muted)">Change in detection score with SecAgg+ switched on — every network stayed level or got slightly <em>better</em>. Turn it on by default.</p>
-      </div>
-      <div class="card dp">
-        <span class="verdict costly">steep trade-off</span>
-        <h3>Central differential privacy</h3>
-        <p>Server-side clipping (C = 0.13) plus Gaussian noise makes the released model provably insensitive to any one client. But with only four clients there's no subsampling amplification — useful utility is gone while the privacy budget ε is still in the hundreds.</p>
-      </div>
+    <div class="viz" data-viz>
+      <div class="viz-head"><h4>Masks on: the model barely changes.</h4><span class="pill good">on by default</span></div>
+      <p class="viz-sub">Change in ROC-AUC per network when SecAgg+ is switched on. The masks cancel out
+        exactly in the coordinator's average, so the model that comes out is essentially the same one.</p>
+      <div class="mini-deltas" id="viz-secagg"></div>
+      <div class="axisrow"><span>0</span><span>change in ROC-AUC points when masking is switched on</span><span>+20</span></div>
+      <div class="foot">Full protection against a curious coordinator, at no cost to detection — never worse, so it stays on.</div>
     </div>
 
-    <div class="viz" id="viz-dp" data-viz>
-      <div class="viz-head"><h4>Turn the privacy dial up, and detection collapses.</h4><span class="pill bad">honest negative result</span></div>
-      <p class="viz-sub">Differential privacy works by adding random noise to the shared model. Each dot is one
-        setting of that dial, from a whisper of noise (left) to a strong, provable privacy guarantee (right).
-        Hover a dot for the exact numbers.</p>
+    <div class="viz" id="viz-dp" data-viz style="margin-top:26px">
+      <div class="viz-head"><h4>Turn the privacy dial up, and detection collapses.</h4><span class="pill bad"> negative result</span></div>
+      <p class="viz-sub">Each dot is one noise setting, from barely any (left) to a strong, provable guarantee (right).</p>
       <div class="dp-chart"></div>
-      <div class="foot"><span class="fl">Takeaway</span>The score only stays near the no-noise baseline while the added privacy is <b>cosmetic</b>. By the time the guarantee becomes mathematically meaningful (right-hand zone), the detector is a coin flip. With only four participants there's no crowd to hide in — this kind of formal privacy needs many more organisations at the table.</div>
     </div>
   </div>
 </section>
@@ -829,7 +392,7 @@
       <div class="eyebrow">Deployability</div>
       <h2>Fast enough to run on commodity CPUs.</h2>
       <p class="lede">Benchmarked on the 1.22M-flow UNSW holdout. The 323K-parameter model is so light that on
-        a GPU the bottleneck is building the graphs, not running the network — and even CPU-only clears
+        a GPU the bottleneck is building the graphs, not running the network, and even CPU-only clears
         90,000 flows per second inside 4 GB of RAM.</p>
     </div>
     <div class="tablewrap">
@@ -845,45 +408,7 @@
       </table>
     </div>
     <div class="callout">
-      <b>Where the time goes.</b> On GPU, 93% of end-to-end time is CPU-side graph construction — the forward pass is 0.2 s of 4.5 s. So each participating organisation can run both training and inference without specialised accelerators.
-    </div>
-  </div>
-</section>
-
-<!-- ===================== TAKEAWAYS ===================== -->
-<section class="alt" id="takeaways">
-  <div class="wrap">
-    <div class="section-head">
-      <div class="eyebrow">Takeaways</div>
-      <h2>What the project establishes.</h2>
-      <p class="lede">Federated personalisation can improve NetFlow anomaly detection under non-IID conditions —
-        but it complements client-specific calibration rather than replacing it.</p>
-    </div>
-    <div class="takeaways">
-      <div class="tk">
-        <div class="tk-n">01</div>
-        <h3>Behaviour is environment-specific</h3>
-        <p>The graph autoencoder learns useful "normal traffic" within a network, but those representations transfer poorly. NetFlow is strongly local.</p>
-      </div>
-      <div class="tk">
-        <div class="tk-n">02</div>
-        <h3>Share, don't pool — and keep BN local</h3>
-        <p>Naive pooling and full parameter sharing underperform. FedAvg + FedBN gives the best overall balance: 0.852 ROC-AUC, 0.831 F1, 0.088 FPR.</p>
-      </div>
-      <div class="tk">
-        <div class="tk-n">03</div>
-        <h3>Generalisation improves, gap remains</h3>
-        <p>Multi-client training beats single-source transfer to every unseen dataset, yet held-out false-alarm rates show local calibration is still needed.</p>
-      </div>
-      <div class="tk">
-        <div class="tk-n">04</div>
-        <h3>Privacy depends on the threat</h3>
-        <p>SecAgg+ hides individual updates for free. But at four clients, formal client-level differential privacy costs too much utility to be practical.</p>
-      </div>
-    </div>
-    <div class="cta-row" style="margin-top:38px">
-      <a class="btn btn-primary" style="background:var(--signal);color:#fff" href="https://github.com/sj-c/gnn-netflow-ad" target="_blank" rel="noopener">Explore the code on GitHub ↗</a>
-      <a class="btn btn-ghost" style="color:var(--ink);border-color:var(--line)" href="https://github.com/sj-c/gnn-netflow-ad/blob/main/federated/README.md" target="_blank" rel="noopener">Federated protocol writeup</a>
+      <b>Where the time goes.</b> On GPU, 93% of end-to-end time is CPU-side graph construction; the forward pass is 0.2 s of 4.5 s. So each participating organisation can run both training and inference without specialised accelerators.
     </div>
   </div>
 </section>
@@ -901,1002 +426,18 @@
       <a href="#federated">Federated learning</a>
       <a href="#results">Results</a>
       <a href="#privacy">Privacy</a>
-      <a href="#takeaways">Takeaways</a>
     </div>
     <div>
       <h4>Links</h4>
       <a href="https://github.com/sj-c/gnn-netflow-ad" target="_blank" rel="noopener">GitHub repository ↗</a>
-      <a href="https://github.com/sj-c/gnn-netflow-ad#readme" target="_blank" rel="noopener">README ↗</a>
       <a href="https://flower.ai/docs/framework/index.html" target="_blank" rel="noopener">Flower framework ↗</a>
     </div>
     <div class="fine">
       <span>Chia Sin Jie · Centre for Strategic Infocomm Technologies (CSIT) · 2026</span>
-      <span>Mentors: Jeremy, Sean</span>
     </div>
   </div>
 </footer>
 
-<script>
-/* ================= INTERACTIVE FIGURES ================= */
-(function(){
-"use strict";
-var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-var SVGNS = 'http://www.w3.org/2000/svg';
-function h(tag, cls, html){ var e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; }
-function s(tag, attrs, parent){ var e=document.createElementNS(SVGNS,tag); for(var k in attrs)e.setAttribute(k,attrs[k]); if(parent)parent.appendChild(e); return e; }
-function txt(parent, x, y, str, size, fill, anchor, weight, mono){
-  var t=s('text',{x:x,y:y,'font-size':size||12,fill:fill||'#38445F','text-anchor':anchor||'start',
-    'font-family':mono?'"IBM Plex Mono",monospace':'"IBM Plex Sans",sans-serif','font-weight':weight||400},parent);
-  t.textContent=str; return t;
-}
-
-/* ---------- reveal-on-scroll: each viz registers a callback ---------- */
-var reveals = {};
-var io = ('IntersectionObserver' in window) ? new IntersectionObserver(function(entries){
-  entries.forEach(function(en){
-    if(en.isIntersecting){
-      en.target.classList.add('in');
-      var fn = reveals[en.target.id]; if(fn){ fn(); delete reveals[en.target.id]; }
-      io.unobserve(en.target);
-    }
-  });
-},{threshold:.25}) : null;
-function onReveal(el, fn){
-  if(!io){ el.classList.add('in'); fn(); return; }
-  reveals[el.id]=fn; io.observe(el);
-}
-
-/* =====================================================================
-   1 · HOME vs AWAY dumbbells  — domain 40..100
-===================================================================== */
-(function(){
-  var box=document.getElementById('viz-homeaway'); if(!box) return;
-  var wrap=box.querySelector('.dumb');
-  var X=function(v){ return (v-40)/60*100; };
-  var rows=[
-    {n:'CICIDS', s:'large corporate network', away:45.3, home:94.6},
-    {n:'UNSW',   s:'corporate network',       away:59.6, home:88.7},
-    {n:'BoT-IoT',s:'smart devices',           away:56.8, home:72.2},
-    {n:'ToN-IoT',s:'smart devices + office',  away:68.8, home:77.6}
-  ];
-  var anims=[];
-  rows.forEach(function(r){
-    var row=h('div','drow'), lab=h('div','dlab',r.n+'<small>'+r.s+'</small>'), tr=h('div','dtrack');
-    tr.appendChild(h('span','flip')).style.left=X(50)+'%';
-    var line=h('span','dline'); line.style.left=X(r.away)+'%'; tr.appendChild(line);
-    var pa=h('span','pt away'); pa.style.left=X(r.away)+'%'; pa.title=r.n+' tested away: '+r.away; tr.appendChild(pa);
-    var ph=h('span','pt home'); ph.style.left=X(r.away)+'%'; ph.title=r.n+' tested at home: '+r.home; tr.appendChild(ph);
-    var va=h('span','dval dn',r.away.toFixed(1)); va.style.left=X(r.away)+'%'; tr.appendChild(va);
-    var vh=h('span','dval up',r.home.toFixed(1)); vh.style.left=X(r.away)+'%'; vh.style.color='#0f7d96'; vh.style.fontWeight='600'; tr.appendChild(vh);
-    row.appendChild(lab); row.appendChild(tr); wrap.appendChild(row);
-    anims.push(function(){ line.style.width=(X(r.home)-X(r.away))+'%'; ph.style.left=X(r.home)+'%'; vh.style.left=X(r.home)+'%'; });
-  });
-  onReveal(box,function(){ anims.forEach(function(f){f();}); });
-})();
-
-/* =====================================================================
-   2 · ATTACKS CAUGHT vs FALSE ALARMS paired bars
-===================================================================== */
-(function(){
-  var box=document.getElementById('viz-caught'); if(!box) return;
-  var wrap=box.querySelector('.pbars');
-  var rows=[
-    {n:'CICIDS', s:'large corporate network', caught:87.8, alarms:9.9},
-    {n:'UNSW',   s:'corporate network',       caught:70.1, alarms:5.4},
-    {n:'BoT-IoT',s:'smart devices',           caught:95.8, alarms:41.4, hot:true},
-    {n:'ToN-IoT',s:'smart devices + office',  caught:70.4, alarms:16.9}
-  ];
-  var anims=[];
-  rows.forEach(function(r){
-    var row=h('div','pb-row'), lab=h('div','dlab',r.n+'<small>'+r.s+'</small>'), bars=h('div');
-    [['catch',r.caught,'% of attacks caught'],['alarm',r.alarms,'% false alarms']].forEach(function(cfg){
-      var pb=h('div','pb'), fill=h('i','fill '+cfg[0]), b=h('b');
-      b.textContent=cfg[1].toFixed(0)+cfg[2];
-      var inside = cfg[1]>62;
-      b.style.left='8px'; b.style.color=inside?'#fff':'#38445F';
-      pb.appendChild(fill); pb.appendChild(b); bars.appendChild(pb);
-      anims.push(function(){
-        fill.style.width=cfg[1]+'%';
-        b.style.left = inside ? 'calc('+cfg[1]+'% - 8px)' : 'calc('+cfg[1]+'% + 9px)';
-        if(inside) b.style.transform='translate(-100%,-50%)';
-      });
-    });
-    if(r.hot){ row.style.background='linear-gradient(90deg,rgba(255,107,74,.06),transparent)'; row.style.borderRadius='10px'; }
-    row.appendChild(lab); row.appendChild(bars); wrap.appendChild(row);
-  });
-  onReveal(box,function(){ anims.forEach(function(f){f();}); });
-})();
-
-/* =====================================================================
-   3+4 · RANKED CHARTS with metric toggle (bars / dot-whiskers)
-===================================================================== */
-function rankedChart(boxId, rows, cfg){
-  var box=document.getElementById(boxId); if(!box) return;
-  var wrap=box.querySelector('.rank'), seg=box.querySelector('.seg'), axis=box.querySelector('.axisrow');
-  var metric='score', revealed=false;
-  rows.forEach(function(r,ri){
-    var row=h('div','rrow'+(r.cls?' '+r.cls:''));
-    row.appendChild(h('div','rlab',r.n+(r.s?'<small>'+r.s+'</small>':'')));
-    var tr=h('div','rtrack');
-    if(cfg.whiskers){
-      tr.style.color = r.cls==='lead' ? 'var(--signal)' : '#8b99b5';
-      r._ref=h('span','rref'); if(ri===0) r._ref.appendChild(h('span','',cfg.refLabel)); tr.appendChild(r._ref);
-      r._wh=h('span','whisk'); tr.appendChild(r._wh);
-      r._dot=h('span','wdot'); tr.appendChild(r._dot);
-    } else {
-      r._bar=h('span','rbar'); tr.appendChild(r._bar);
-    }
-    r._val=h('span','rval'); tr.appendChild(r._val);
-    row.appendChild(tr); r._row=row; wrap.appendChild(row);
-  });
-  function paint(){
-    var m=cfg.metrics[metric];
-    rows.forEach(function(r){
-      var v=r[metric], pct=(v-m.min)/(m.max-m.min)*100;
-      if(cfg.whiskers){
-        var sd=r[metric+'Sd']||0, lo=Math.max(0,(v-sd-m.min)/(m.max-m.min)*100), hi=Math.min(100,(v+sd-m.min)/(m.max-m.min)*100);
-        r._wh.style.left=lo+'%'; r._wh.style.width=(hi-lo)+'%';
-        r._dot.style.left=pct+'%';
-        r._dot.title=r.n+': '+v.toFixed(1)+' ±'+sd.toFixed(1);
-        r._val.style.left='calc('+Math.min(hi,88)+'% + 12px)';
-        r._val.textContent=v.toFixed(1)+' ±'+sd.toFixed(1);
-        r._ref.style.left=((m.ref-m.min)/(m.max-m.min)*100)+'%';
-      } else {
-        r._bar.style.width=(revealed?pct:0)+'%';
-        r._val.style.left='calc('+Math.min(pct,86)+'% + 10px)';
-        r._val.textContent=v.toFixed(1)+(metric==='alarms'?'%':'');
-        r._bar.title=r.n+': '+v.toFixed(1);
-      }
-    });
-    var ax=cfg.metrics[metric].axis, sp=axis.children;
-    sp[0].textContent=ax[0]; sp[1].textContent=ax[1]; sp[2].textContent=ax[2];
-  }
-  function sortRows(){
-    var sorted=rows.slice().sort(function(a,b){ return metric==='alarms' ? a[metric]-b[metric] : b[metric]-a[metric]; });
-    var olds=rows.map(function(r){ return r._row.getBoundingClientRect().top; });
-    sorted.forEach(function(r){ wrap.appendChild(r._row); });
-    rows.forEach(function(r,i){
-      var nt=r._row.getBoundingClientRect().top, d=olds[i]-nt;
-      if(d){ r._row.style.transition='none'; r._row.style.transform='translateY('+d+'px)';
-        void r._row.offsetHeight;
-        r._row.style.transition=''; r._row.style.transform=''; }
-    });
-  }
-  seg.addEventListener('click',function(e){
-    var b=e.target.closest('button'); if(!b||b.classList.contains('on'))return;
-    seg.querySelectorAll('button').forEach(function(x){x.classList.remove('on');});
-    b.classList.add('on'); metric=b.dataset.metric;
-    paint(); sortRows();
-  });
-  paint(); sortRows();
-  onReveal(box,function(){ revealed=true; paint(); });
-}
-
-rankedChart('viz-central',[
-  {n:'Fresh local head on a pooled backbone', s:'the best pooled recipe',            score:84.6, alarms:18.2, cls:'lead'},
-  {n:'No sharing — one model per network',    s:'the baseline from the charts above',score:83.3, alarms:18.4, cls:'base'},
-  {n:'Local head + re-tuned scaling',         s:'AdaBN',                             score:82.4, alarms:22.4},
-  {n:'Pooled + locally trained scaling',      s:'FedBN-style fine-tune',             score:80.1, alarms:24.0},
-  {n:'Pooled + local decoder per network',    s:'quietest, but mid-table score',     score:79.9, alarms:12.8},
-  {n:'Local head + locally trained scaling',  s:'',                                  score:79.6, alarms:22.4},
-  {n:'Pooled + re-tuned scaling',             s:'AdaBN',                             score:78.6, alarms:27.8},
-  {n:'Everything in one pot — fully shared',  s:'all raw data pooled, nothing personal', score:73.4, alarms:32.1, cls:'worst'}
-],{
-  metrics:{
-    score:{min:50,max:90,axis:['50 (coin flip)','detection score — average of the four networks','90']},
-    alarms:{min:0,max:40,axis:['0','false alarms — % of normal traffic wrongly flagged','40']}
-  }
-});
-
-rankedChart('viz-fed',[
-  {n:'FedAvg + FedBN',   s:'share all except each network’s scaling', score:85.2, scoreSd:1.3, alarms:8.8,  alarmsSd:2.4, cls:'lead'},
-  {n:'FedProx + FedBN',  s:'same, plus a “don’t drift” penalty', score:84.8, scoreSd:2.2, alarms:9.5,  alarmsSd:4.4},
-  {n:'FedProx + FedRep', s:'share the encoder only, plus penalty',          score:83.7, scoreSd:1.2, alarms:14.8, alarmsSd:1.8},
-  {n:'FedAvg + FedRep',  s:'share the encoder, keep the decoder local',     score:83.3, scoreSd:3.0, alarms:14.8, alarmsSd:3.7},
-  {n:'FedAvg (plain)',   s:'share the whole model',                         score:81.8, scoreSd:1.7, alarms:14.0, alarmsSd:2.4},
-  {n:'FedProx (plain)',  s:'share the whole model, plus penalty',           score:77.3, scoreSd:5.1, alarms:20.3, alarmsSd:6.3}
-],{
-  whiskers:true, refLabel:'best pooled',
-  metrics:{
-    score:{min:72,max:90,ref:84.6,axis:['72','detection score — average of the four networks','90']},
-    alarms:{min:0,max:28,ref:18.2,axis:['0','false alarms — % of normal traffic wrongly flagged','28']}
-  }
-});
-
-/* =====================================================================
-   5 · TRANSFER arrows (1 teacher → 3 teachers, ceiling diamond)
-===================================================================== */
-(function(){
-  var box=document.getElementById('viz-transfer'); if(!box) return;
-  var wrap=box.querySelector('.dumb');
-  var X=function(v){ return (v-40)/60*100; };
-  var rows=[
-    {n:'All four (average)', s:'', one:57.6, three:75.2, bench:83.3, avg:true},
-    {n:'CICIDS',  s:'large corporate network', one:45.3, three:76.9, bench:94.6},
-    {n:'UNSW',    s:'corporate network',       one:59.6, three:81.9, bench:88.7},
-    {n:'BoT-IoT', s:'smart devices',           one:56.8, three:65.3, bench:72.2},
-    {n:'ToN-IoT', s:'smart devices + office',  one:68.8, three:76.7, bench:77.6}
-  ];
-  var anims=[];
-  rows.forEach(function(r){
-    var row=h('div','drow'+(r.avg?' avg':'')), lab=h('div','dlab',r.n+(r.s?'<small>'+r.s+'</small>':'')), tr=h('div','dtrack');
-    tr.appendChild(h('span','flip')).style.left=X(50)+'%';
-    var line=h('span','dline arr'); line.style.left=X(r.one)+'%'; tr.appendChild(line);
-    var bench=h('span','bench'); bench.style.left=X(r.bench)+'%'; bench.title='Home-trained ceiling: '+r.bench; tr.appendChild(bench);
-    var p1=h('span','pt away'); p1.style.left=X(r.one)+'%'; p1.title='Taught by 1 network: '+r.one; tr.appendChild(p1);
-    var p3=h('span','pt newm'); p3.style.left=X(r.one)+'%'; p3.title='Taught by 3 networks: '+r.three; tr.appendChild(p3);
-    var d=h('span','dval up delta','+'+(r.three-r.one).toFixed(1)); d.style.left=X(r.one)+'%'; tr.appendChild(d);
-    var v1=h('span','dval dn',r.one.toFixed(1)); v1.style.left=X(r.one)+'%'; tr.appendChild(v1);
-    row.appendChild(lab); row.appendChild(tr); wrap.appendChild(row);
-    anims.push(function(){ line.style.width=(X(r.three)-X(r.one))+'%'; p3.style.left=X(r.three)+'%'; d.style.left=X(r.three)+'%'; });
-  });
-  onReveal(box,function(){ anims.forEach(function(f){f();}); });
-})();
-
-/* =====================================================================
-   6 · SecAgg mini deltas
-===================================================================== */
-(function(){
-  var box=document.getElementById('viz-secagg'); if(!box) return;
-  var rows=[ ['BoT-IoT',3.3],['UNSW',2.0],['ToN-IoT',0.5],['CICIDS',0.2] ];
-  var anims=[];
-  rows.forEach(function(r){
-    var row=h('div','md-row');
-    row.appendChild(h('span','',r[0]));
-    var trk=h('div','md-track'), fill=h('i','md-fill'); trk.appendChild(fill); row.appendChild(trk);
-    row.appendChild(h('span','md-val','+'+r[1].toFixed(1)));
-    box.appendChild(row);
-    anims.push(function(){ fill.style.width=(r[1]/4*100)+'%'; });
-  });
-  onReveal(box,function(){ anims.forEach(function(f){f();}); });
-})();
-
-/* =====================================================================
-   7 · DP privacy-dial line chart (SVG)
-===================================================================== */
-(function(){
-  var box=document.getElementById('viz-dp'); if(!box) return;
-  var wrap=box.querySelector('.dp-chart');
-  var sig=[0.1,0.15,0.2,0.25,0.3,0.5,0.7,1,3,10];
-  var score=[83.6,78.2,66.1,70.4,62.8,61.1,63.8,53.9,55.9,53.5];
-  var eps=[2800,1300,790,540,390,160,92,55,12,3.5];
-  var W=760,H=310,L=46,R=16,T=26,B=64, BASE=83.8;
-  var x=function(i){ return L+i/(sig.length-1)*(W-L-R); };
-  var y=function(v){ return T+(90-v)/(90-45)*(H-T-B); };
-  var svg=s('svg',{viewBox:'0 0 '+W+' '+H,role:'img','aria-label':'Line chart: detection score falls from 84 to about 53 as differential-privacy noise increases'});
-  wrap.appendChild(svg);
-  // meaningful-privacy zone (last two settings)
-  var zx=x(7.5);
-  s('rect',{x:zx,y:T-6,width:W-R-zx,height:H-T-B+6,fill:'rgba(124,107,255,.07)',rx:8},svg);
-  txt(svg,(zx+W-R)/2,T+8,'privacy actually',10.5,'#7C6BFF','middle',600);
-  txt(svg,(zx+W-R)/2,T+21,'meaningful (ε ≤ 12)',10.5,'#7C6BFF','middle',600);
-  // gridlines + y labels
-  [50,60,70,80].forEach(function(g){
-    s('line',{x1:L,x2:W-R,y1:y(g),y2:y(g),stroke:'#E4E9F3','stroke-width':1},svg);
-    txt(svg,L-8,y(g)+4,String(g),11,'#697691','end',400,true);
-  });
-  // coin-flip + baseline
-  s('line',{x1:L,x2:W-R,y1:y(50),y2:y(50),stroke:'#E8462A','stroke-width':1.4,'stroke-dasharray':'6 5',opacity:.65},svg);
-  txt(svg,W-R,y(50)-6,'coin flip (50)',10.5,'#E8462A','end',500,true);
-  s('line',{x1:L,x2:W-R,y1:y(BASE),y2:y(BASE),stroke:'#38445F','stroke-width':1.3,'stroke-dasharray':'2 5'},svg);
-  txt(svg,L+4,y(BASE)-7,'no noise added: 83.8',10.5,'#38445F','start',500,true);
-  // line + dots
-  var pts=score.map(function(v,i){ return x(i)+','+y(v); }).join(' ');
-  var line=s('polyline',{points:pts,fill:'none',stroke:'#1BA5C4','stroke-width':2.6,'stroke-linejoin':'round','stroke-linecap':'round'},svg);
-  score.forEach(function(v,i){
-    var strong=i>=8;
-    var c=s('circle',{cx:x(i),cy:y(v),r:5.5,fill:strong?'#7C6BFF':'#1BA5C4',stroke:'#fff','stroke-width':2},svg);
-    var t=s('title',{},c);
-    t.textContent='Noise level σ='+sig[i]+' → score '+v.toFixed(1)+' (privacy budget ε≈'+eps[i]+')';
-  });
-  // x axis words
-  txt(svg,L,H-30,'barely any noise',11,'#697691','start',400,true);
-  txt(svg,W-R,H-30,'heavy noise',11,'#697691','end',400,true);
-  txt(svg,(L+W-R)/2,H-10,'→ turning the privacy dial up (more noise added to the shared model)',11.5,'#38445F','middle',500);
-  // draw-in animation
-  if(!REDUCED){
-    var len=line.getTotalLength();
-    line.style.strokeDasharray=len; line.style.strokeDashoffset=len;
-    line.style.transition='stroke-dashoffset 1.8s ease';
-  }
-  onReveal(box,function(){ line.style.strokeDashoffset=0; });
-})();
-
-/* =====================================================================
-   8 · PIPELINE interactive stage
-===================================================================== */
-(function(){
-  var svg=document.getElementById('pipe-svg'); if(!svg) return;
-  var capN=document.getElementById('pipe-cap-n'), capT=document.getElementById('pipe-cap-t'), cap=document.getElementById('pipe-cap');
-  var INK='#0F1830', MUT='#697691', SIG='#1BA5C4', VIO='#7C6BFF', ANOM='#FF6B4A', DIM='#C7D2E4';
-
-  function g(id){ var e=s('g',{id:id,'class':'pel'},svg); return e; }
-  var defs=s('defs',{},svg);
-  function marker(id,color){
-    var mk=s('marker',{id:id,markerWidth:10,markerHeight:9,refX:9,refY:4.5,orient:'auto',markerUnits:'userSpaceOnUse'},defs);
-    s('path',{d:'M0,0 L10,4.5 L0,9 z',fill:color},mk);
-  }
-  marker('pArr',MUT); marker('mGrey','#9DB1CD'); marker('mCyan',SIG); marker('mRed',ANOM); marker('mDim',DIM);
-
-  /* -- records table -- */
-  var gT=g('p-table');
-  s('rect',{x:22,y:64,width:224,height:190,rx:12,fill:'#F5F7FB',stroke:'#DCE3EF'},gT);
-  txt(gT,134,50,'1,000 connection records',13,INK,'middle',600);
-  for(var i=0;i<7;i++){
-    var ry=78+i*25;
-    s('rect',{x:34,y:ry,width:200,height:18,rx:4,fill:i===0?'#DCE3EF':'#fff',stroke:'#E4E9F3'},gT);
-    if(i>0){
-      s('rect',{x:40,y:ry+5,width:44,height:8,rx:3,fill:'#B9C6DE'},gT);   /* from */
-      s('rect',{x:92,y:ry+5,width:44,height:8,rx:3,fill:'#B9C6DE'},gT);   /* to */
-      s('rect',{x:144,y:ry+5,width:24+((i*37)%42),height:8,rx:3,fill:'#8FD8E8'},gT); /* size */
-    } else {
-      txt(gT,40,ry+13,'from',9,MUT,'start',500,true); txt(gT,92,ry+13,'to',9,MUT,'start',500,true);
-      txt(gT,144,ry+13,'bytes, ports…',9,MUT,'start',500,true);
-    }
-  }
-  var gA=g('p-arrow');
-  s('path',{d:'M254 160 H300',stroke:MUT,'stroke-width':2,fill:'none','marker-end':'url(#pArr)'},gA);
-
-  /* -- directed graph: dots = devices, arrows = connections -- */
-  var N=[[398,96],[520,70],[468,178],[372,256],[532,262],[608,160]];
-  var E=[[0,1],[0,2],[1,5],[2,3],[2,4],[3,4],[4,5],[2,5],[1,2]];
-  var BAD=2;   /* edge [1,5] — the anomaly flagged at step 5 */
-  var GUESS=4; /* edge [2,4] — the example the model guesses at step 4 */
-  var gG=g('p-graph'), edgeEls=[];
-  E.forEach(function(e){
-    var a=N[e[0]], b=N[e[1]], dx=b[0]-a[0], dy=b[1]-a[1], L=Math.sqrt(dx*dx+dy*dy), ux=dx/L, uy=dy/L;
-    edgeEls.push(s('line',{x1:a[0]+ux*12,y1:a[1]+uy*12,x2:b[0]-ux*16,y2:b[1]-uy*16,
-      stroke:'#9DB1CD','stroke-width':2,'marker-end':'url(#mGrey)','class':'pipe-edge'},gG));
-  });
-  var gH=g('p-halos');
-  N.forEach(function(p){
-    s('circle',{cx:p[0],cy:p[1],r:19,fill:'none',stroke:VIO,'stroke-width':3,opacity:.55,'class':'pulse-halo'},gH);
-    /* tiny bar-chart chip = that device's behaviour profile */
-    var bx=p[0]+14, by=p[1]-36;
-    s('rect',{x:bx,y:by,width:27,height:22,rx:5,fill:'#fff',stroke:VIO,'stroke-width':1.2},gH);
-    for(var i=0;i<3;i++){
-      var hgt=5+((p[0]*(i+3)+p[1]*(i+1))%10);
-      s('rect',{x:bx+4+i*7,y:by+18-hgt,width:5,height:hgt,rx:1,fill:VIO,opacity:.8},gH);
-    }
-  });
-  txt(gH,372,330,'every device gets a behaviour profile — a small summary of how it usually acts',12.5,VIO,'start',600);
-  N.forEach(function(p){ s('circle',{cx:p[0],cy:p[1],r:8,fill:'#fff',stroke:SIG,'stroke-width':3},gG); });
-  var gGlab=txt(gG,372,306,'dots = devices · arrows = connections, sender → receiver',12.5,MUT,'start',500);
-
-  /* -- network summary -- */
-  var gC=g('p-ctx');
-  E.slice(0,6).forEach(function(e){
-    var mx=(N[e[0]][0]+N[e[1]][0])/2, my=(N[e[0]][1]+N[e[1]][1])/2;
-    s('path',{d:'M'+mx+' '+my+' Q 730 40 762 74',stroke:VIO,'stroke-width':1.3,'stroke-dasharray':'3 5',fill:'none',opacity:.6},gC);
-  });
-  s('rect',{x:742,y:64,width:152,height:52,rx:12,fill:'rgba(124,107,255,.1)',stroke:VIO,'stroke-width':1.5},gC);
-  txt(gC,818,86,'network summary',13,VIO,'middle',600);
-  txt(gC,818,104,'all connections, averaged',10,MUT,'middle',400,true);
-
-  /* -- guess-vs-real panel, shared by steps 4 and 5 -- */
-  function panel(gp,title,rows,verdict,vcol,note){
-    s('rect',{x:618,y:136,width:244,height:190,rx:12,fill:'#F5F7FB',stroke:'#DCE3EF'},gp);
-    txt(gp,740,159,title,12.5,INK,'middle',600);
-    txt(gp,772,181,'guess',10,VIO,'end',600,true);
-    txt(gp,848,181,'real',10,MUT,'end',600,true);
-    rows.forEach(function(r,i){
-      var y=204+i*24;
-      txt(gp,632,y,r[0],10.5,MUT,'start',500,true);
-      txt(gp,772,y,r[1],11.5,VIO,'end',600,true);
-      txt(gp,848,y,r[2],11.5,'#38445F','end',600,true);
-    });
-    txt(gp,632,286,verdict,12.5,vcol,'start',700);
-    if(note) txt(gp,632,306,note,9.5,MUT,'start',400,true);
-  }
-
-  /* -- step 4: guess one connection's numbers -- */
-  var gD=g('p-guess');
-  var q0=N[E[GUESS][0]], q1=N[E[GUESS][1]], qx=(q0[0]+q1[0])/2, qy=(q0[1]+q1[1])/2;
-  s('circle',{cx:q0[0],cy:q0[1],r:13,fill:'none',stroke:VIO,'stroke-width':2.5},gD);
-  s('circle',{cx:q1[0],cy:q1[1],r:13,fill:'none',stroke:VIO,'stroke-width':2.5},gD);
-  s('path',{d:'M'+(qx+14)+' '+qy+' Q 585 231 614 231',stroke:MUT,'stroke-width':1.4,'stroke-dasharray':'4 4',fill:'none'},gD);
-  panel(gD,'guess the numbers on this arrow',
-    [['duration','0.41 s','0.42 s'],['packets','11','12'],['bytes','980 B','1,004 B']],
-    '✓ close — looks normal','#0a8a52','using only the profiles + summary');
-
-  /* -- step 5: compare & flag -- */
-  var gS=g('p-score');
-  var b0=N[E[BAD][0]], b1=N[E[BAD][1]], bx=(b0[0]+b1[0])/2, by=(b0[1]+b1[1])/2;
-  s('circle',{cx:bx,cy:by,r:15,fill:ANOM},gS);
-  txt(gS,bx,by+5,'!',15,'#fff','middle',700);
-  s('path',{d:'M'+(bx+18)+' '+(by+8)+' Q 600 138 616 165',stroke:'#E8462A','stroke-width':1.4,'stroke-dasharray':'4 4',fill:'none'},gS);
-  panel(gS,'the flagged arrow’s numbers',
-    [['duration','0.4 s','47 s'],['packets','12','9,214'],['bytes','1 kB','9.6 MB']],
-    '✗ wild miss → flagged','#E8462A','nothing it learned looks like this');
-  txt(gS,22,306,'close guess = normal',12.5,MUT,'start',500);
-  txt(gS,22,326,'wild miss = flagged',12.5,'#E8462A','start',600);
-
-  var CAPS=[
-    ['Draw the graph.','Take 1,000 connection records and turn them into a directed graph — each device a dot, each connection an arrow from sender to receiver.'],
-    ['Profile each device.','From the connections around it, each device gets a behaviour profile — a compact summary of how it usually acts.'],
-    ['Summarise the moment.','All 1,000 connections are averaged into one network summary — what’s generally going on right now.'],
-    ['Guess every connection.','The model hides each connection’s real numbers and guesses them — duration, packets, bytes — from just the two profiles and the summary.'],
-    ['Compare and flag.','Guess vs reality: on normal traffic the guess lands close. A wild miss means the model has never seen anything like it — flagged.']
-  ];
-  var SHOW={
-    1:{on:['p-table','p-arrow','p-graph'],dim:[]},
-    2:{on:['p-graph','p-halos'],dim:['p-table','p-arrow']},
-    3:{on:['p-graph','p-ctx'],dim:['p-table','p-arrow','p-halos']},
-    4:{on:['p-graph','p-ctx','p-guess'],dim:['p-table','p-arrow']},
-    5:{on:['p-graph','p-score'],dim:['p-table','p-arrow','p-ctx']}
-  };
-  var dotsBox=document.getElementById('pipe-dots');
-  for(var di=1;di<=5;di++){
-    var db=document.createElement('button');
-    db.dataset.step=di; db.setAttribute('aria-label','Step '+di);
-    dotsBox.appendChild(db);
-  }
-  var current=1;
-  function setStep(n){
-    current=n;
-    ['p-table','p-arrow','p-graph','p-halos','p-ctx','p-guess','p-score'].forEach(function(id){
-      var e=document.getElementById(id);
-      e.classList.remove('on'); e.style.opacity='';
-      if(SHOW[n].on.indexOf(id)>=0) e.classList.add('on');
-      else if(SHOW[n].dim.indexOf(id)>=0){ e.classList.add('on'); e.style.opacity=.18; }
-    });
-    edgeEls.forEach(function(el,i){
-      var stroke='#9DB1CD', mk='mGrey', w=2, op=1;
-      if(n===5){ if(i===BAD){stroke=ANOM;mk='mRed';w=4;op=1;} else {stroke=SIG;mk='mCyan';w=2.2;op=.8;} }
-      else if(n===4){ if(i===GUESS){stroke=SIG;mk='mCyan';w=3;op=1;} else {stroke=DIM;mk='mDim';w=2;op=.6;} }
-      el.setAttribute('stroke',stroke); el.setAttribute('marker-end','url(#'+mk+')');
-      el.setAttribute('stroke-width',w); el.setAttribute('opacity',op);
-    });
-    gGlab.setAttribute('opacity', n>=4?0:1);
-    capN.textContent='STEP '+n+' / 5'; capT.textContent=CAPS[n-1][0]; cap.textContent=CAPS[n-1][1];
-    dotsBox.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on',+b.dataset.step===n); });
-  }
-  var auto=null;
-  function stopAuto(){ if(auto){ clearInterval(auto); auto=null; } }
-  document.getElementById('pipe-prev').addEventListener('click',function(){ stopAuto(); setStep((current+3)%5+1); });
-  document.getElementById('pipe-next').addEventListener('click',function(){ stopAuto(); setStep(current%5+1); });
-  dotsBox.addEventListener('click',function(e){
-    var b=e.target.closest('button'); if(!b)return; stopAuto(); setStep(+b.dataset.step);
-  });
-  setStep(1);
-  if(!REDUCED && io){
-    var st=document.getElementById('pipe-stage');
-    var pio=new IntersectionObserver(function(en){
-      if(en[0].isIntersecting && !auto){ auto=setInterval(function(){ setStep(current%5+1); },4500); }
-      else if(!en[0].isIntersecting) stopAuto();
-    },{threshold:.4});
-    pio.observe(st);
-  }
-})();
-
-/* =====================================================================
-   9 · FEDERATED ROUND simulator
-===================================================================== */
-(function(){
-  var svg=document.getElementById('fr-svg'); if(!svg) return;
-  var INK='#0F1830', MUT='#697691', SIG='#1BA5C4', VIO='#7C6BFF', ANOM='#FF6B4A', KEY='#B07E1F';
-  var st={fedbn:true,secagg:false,dp:false,playing:false,round:1,pi:-1};
-
-  var defs=s('defs',{},svg);
-  var f=s('filter',{id:'fuzz',x:'-60%',y:'-60%',width:'220%',height:'220%'},defs);
-  s('feGaussianBlur',{stdDeviation:'1.6'},f);
-  var pat=s('pattern',{id:'maskpat',width:'6',height:'6',patternUnits:'userSpaceOnUse',patternTransform:'rotate(45)'},defs);
-  s('rect',{width:'6',height:'6',fill:SIG},pat);
-  s('rect',{width:'3',height:'6',fill:'#0F1830'},pat);
-
-  /* coordinator */
-  var srvPulse=s('circle',{cx:480,cy:62,r:54,fill:'rgba(27,165,196,.16)',opacity:0},svg);
-  s('rect',{x:384,y:26,width:192,height:72,rx:14,fill:'#0f1b3e'},svg);
-  txt(svg,480,56,'Coordinator',14.5,'#fff','middle',600);
-  txt(svg,480,76,'sees updates, never data',10,'#9fb0d4','middle',400,true);
-  var formula=txt(svg,480,120,'',12.5,VIO,'middle',700,true);
-
-  /* organisations */
-  var CL=[
-    {x:36, name:'Org A · CICIDS'},
-    {x:272,name:'Org B · UNSW'},
-    {x:508,name:'Org C · ToN-IoT'},
-    {x:744,name:'Org D · BoT-IoT'}
-  ];
-  var paths=[];
-  CL.forEach(function(c,ci){
-    c.cx=c.x+90;
-    var gc=s('g',{},svg);
-    s('rect',{x:c.x,y:268,width:180,height:140,rx:14,fill:'#fff',stroke:'#DCE3EF','stroke-width':1.5},gc);
-    txt(gc,c.cx,290,c.name,12.5,INK,'middle',600);
-    /* private traffic logs, behind a dashed fence with a padlock */
-    c.fence=s('rect',{x:c.x+12,y:300,width:104,height:100,rx:10,fill:'rgba(27,165,196,.05)',stroke:SIG,'stroke-width':1.5,'stroke-dasharray':'5 4'},gc);
-    s('path',{d:'M'+(c.x+17)+' 296 v-3 a4.5 4.5 0 0 1 9 0 v3',stroke:'#0f7d96','stroke-width':1.6,fill:'none'},gc);
-    s('rect',{x:c.x+13,y:296,width:17,height:11,rx:3,fill:'#0f7d96'},gc);
-    s('rect',{x:c.x+20,y:308,width:88,height:13,rx:3,fill:'#DCE3EF'},gc);
-    txt(gc,c.x+25,318,'traffic logs',8,MUT,'start',500,true);
-    for(var r=0;r<5;r++){
-      var ry=327+r*14;
-      s('rect',{x:c.x+20,y:ry,width:88,height:11,rx:3,fill:'#F5F7FB'},gc);
-      s('rect',{x:c.x+25,y:ry+3.5,width:20,height:4,rx:2,fill:'#B9C6DE'},gc);
-      s('rect',{x:c.x+50,y:ry+3.5,width:20,height:4,rx:2,fill:'#B9C6DE'},gc);
-      s('rect',{x:c.x+75,y:ry+3.5,width:10+((ci*7+r*11)%18),height:4,rx:2,fill:'#8FD8E8'},gc);
-    }
-    c.hl=s('rect',{x:c.x+20,y:327,width:88,height:11,rx:3,fill:'rgba(124,107,255,.25)',opacity:0},gc);
-    /* local model copy (tiny network) + training progress + BN block */
-    s('rect',{x:c.x+124,y:302,width:44,height:52,rx:8,fill:'#F5F7FB',stroke:'#c9d3e4','stroke-width':1.2},gc);
-    var nx=[c.x+133,c.x+146,c.x+159], l1=[312,324,336], l2=[318,330];
-    l1.forEach(function(y1){ l2.forEach(function(y2){
-      s('line',{x1:nx[0],y1:y1,x2:nx[1],y2:y2,stroke:'#c9d3e4','stroke-width':.8},gc);
-      s('line',{x1:nx[1],y1:y2,x2:nx[2],y2:y1,stroke:'#c9d3e4','stroke-width':.8},gc);
-    }); });
-    l1.forEach(function(y){ s('circle',{cx:nx[0],cy:y,r:2.4,fill:VIO},gc); s('circle',{cx:nx[2],cy:y,r:2.4,fill:VIO},gc); });
-    l2.forEach(function(y){ s('circle',{cx:nx[1],cy:y,r:2.4,fill:VIO},gc); });
-    txt(gc,c.x+146,349,'model',8,MUT,'middle',500,true);
-    s('rect',{x:c.x+124,y:362,width:44,height:6,rx:3,fill:'#EDF1F8'},gc);
-    c.prog=s('rect',{x:c.x+124,y:362,width:0,height:6,rx:3,fill:VIO},gc);
-    c.bnChip=s('rect',{x:c.x+124,y:376,width:44,height:22,rx:8,fill:'rgba(124,107,255,.12)',stroke:VIO,'stroke-width':1.4},gc);
-    c.bnTxt=txt(gc,c.x+146,391,'BN',10,VIO,'middle',700,true);
-    /* path to coordinator */
-    paths.push(s('path',{d:'M'+c.cx+' 264 C '+c.cx+' 200, 480 180, 480 102',stroke:'#E4E9F3','stroke-width':1.6,fill:'none'},svg));
-  });
-
-  /* in-diagram step callouts (drawn under the moving packets) */
-  var co=s('g',{},svg);
-  function callout(x,y,lines,accent){
-    var w=0; lines.forEach(function(L){ w=Math.max(w,L.length); });
-    var bw=Math.min(w*6.4+26,470), bh=lines.length*16+14;
-    var box=s('g',{},co);
-    s('rect',{x:x-bw/2,y:y,width:bw,height:bh,rx:10,fill:'#fff',stroke:accent||'#DCE3EF','stroke-width':1.4,opacity:.97},box);
-    lines.forEach(function(L,i){ txt(box,x,y+21+i*16,L,i===0?12:11.5,i===0?(accent||INK):'#38445F','middle',i===0?700:400); });
-  }
-  function clearCo(){ while(co.firstChild) co.removeChild(co.firstChild); }
-  var hint=txt(svg,480,186,'▶ press Play to follow one training round, step by step',12.5,MUT,'middle',500);
-
-  /* SecAgg key-exchange arcs between the organisations */
-  function keyGlyph(){
-    var kg=s('g',{opacity:0},svg);
-    s('circle',{cx:-4,cy:0,r:3.4,fill:'#fff',stroke:KEY,'stroke-width':2},kg);
-    s('path',{d:'M-0.6 0 H8 M5 0 v3.4 M8 0 v3.4',stroke:KEY,'stroke-width':2,fill:'none','stroke-linecap':'round'},kg);
-    return kg;
-  }
-  var keyArcs=[[0,1],[1,2],[2,3],[0,3]].map(function(pr){
-    var x0=CL[pr[0]].cx, x1=CL[pr[1]].cx, cy=(pr[1]-pr[0]===1)?216:156;
-    var p=s('path',{d:'M'+x0+' 260 Q '+((x0+x1)/2)+' '+cy+' '+x1+' 260',stroke:KEY,'stroke-width':1.2,'stroke-dasharray':'3 5',fill:'none',opacity:0},svg);
-    return {path:p,len:p.getTotalLength(),k1:keyGlyph(),k2:keyGlyph()};
-  });
-  function keysVis(v){ keyArcs.forEach(function(a){ a.path.setAttribute('opacity',v?.7:0); a.k1.setAttribute('opacity',v?1:0); a.k2.setAttribute('opacity',v?1:0); }); }
-
-  /* packets = the model / its update, travelling the paths */
-  var pk=CL.map(function(){
-    var gp=s('g',{opacity:0},svg);
-    var core=s('circle',{r:9,fill:VIO},gp);
-    var hatch=s('circle',{r:9,fill:'url(#maskpat)',opacity:0},gp);
-    var lock=s('path',{d:'M-3 -1 v-2 a3 3 0 0 1 6 0 v2 M-4 -1 h8 v6 h-8 z',stroke:'#fff','stroke-width':1.4,fill:'none',opacity:0},gp);
-    var speck=s('g',{opacity:0},gp);
-    for(var i=0;i<5;i++) s('circle',{cx:(i-2)*5,cy:(i%2?-8:8),r:1.6,fill:ANOM},speck);
-    return {g:gp,core:core,hatch:hatch,lock:lock,speck:speck};
-  });
-  function pkSet(o){
-    pk.forEach(function(p){
-      p.core.setAttribute('fill',o.fill);
-      p.hatch.setAttribute('opacity',o.hatch);
-      p.lock.setAttribute('opacity',o.lock);
-      p.speck.setAttribute('opacity',o.specks);
-      if(o.blur) p.core.setAttribute('filter','url(#fuzz)'); else p.core.removeAttribute('filter');
-    });
-  }
-  function place(i,t,up){ /* t 0..1 along path; path runs client->server */
-    var pe=paths[i], len=pe.getTotalLength();
-    var pt=pe.getPointAtLength((up?t:1-t)*len);
-    pk[i].g.setAttribute('transform','translate('+pt.x+','+pt.y+')');
-  }
-
-  function bnPaint(){
-    CL.forEach(function(c){
-      c.bnChip.setAttribute('stroke', st.fedbn?VIO:'#B9C6DE');
-      c.bnChip.setAttribute('fill', st.fedbn?'rgba(124,107,255,.12)':'#EDF1F8');
-      c.bnTxt.setAttribute('fill', st.fedbn?VIO:MUT);
-    });
-  }
-  bnPaint();
-
-  /* phase list adapts to the toggles; each phase narrates itself on the diagram */
-  function phases(){
-    var ph=[{id:'send',d:2000},{id:'train',d:2600}];
-    if(st.secagg) ph.push({id:'keys',d:2600},{id:'mask',d:2000});
-    if(st.dp) ph.push({id:'noise',d:1800});
-    ph.push({id:'ret',d:2400},{id:'avg',d:2600});
-    return ph;
-  }
-  var PH=phases();
-  function stepNums(){
-    var n={send:1,train:2}, k=3;
-    if(st.secagg){ n.keys=k; n.mask=k; k++; }
-    if(st.dp){ n.noise=k; k++; }
-    n.ret=k; k++; n.avg=k; n.total=k;
-    return n;
-  }
-  var roundEl=document.getElementById('fr-round');
-  function enterPhase(id){
-    var n=stepNums(), T=' of '+n.total;
-    clearCo(); formula.textContent=''; hint.setAttribute('opacity',0);
-    srvPulse.setAttribute('opacity',0);
-    keysVis(false);
-    CL.forEach(function(c){ c.hl.setAttribute('opacity',0); });
-    if(id==='send'){
-      pkSet({fill:VIO,hatch:0,lock:0,specks:0,blur:false});
-      callout(480,166,['Step 1'+T+' · Send out the model',
-        'The coordinator sends every organisation',
-        'a copy of the one shared model.'],SIG);
-    }
-    if(id==='train'){
-      pk.forEach(function(p){ p.g.setAttribute('opacity',0); });
-      callout(480,196,['Step 2'+T+' · Train at home',
-        'Each organisation tunes its copy on its own',
-        'traffic logs — the logs never leave the fence.'],SIG);
-    }
-    if(id==='keys'){
-      pk.forEach(function(p){ p.g.setAttribute('opacity',0); });
-      keysVis(true);
-      callout(480,120,['Step '+n.keys+T+' · SecAgg+ — swap secret keys',
-        'Every pair of organisations exchanges a key',
-        'that only those two know.'],KEY);
-    }
-    if(id==='mask'){
-      pkSet({fill:VIO,hatch:0,lock:0,specks:0,blur:false});
-      pk.forEach(function(p,i){ p.g.setAttribute('opacity',1); place(i,.04,true); });
-      callout(480,120,['Step '+n.mask+T+' · SecAgg+ — put on the masks',
-        'Each update is hidden under masks built from the keys.',
-        'Paired masks are equal and opposite: +m and −m.'],KEY);
-    }
-    if(id==='noise'){
-      pkSet({fill:VIO,hatch:st.secagg?1:0,lock:st.secagg?1:0,specks:0,blur:false});
-      pk.forEach(function(p,i){ p.g.setAttribute('opacity',1); place(i,.04,true); });
-      callout(480,150,['Step '+n.noise+T+' · DP — add a pinch of noise',
-        'Random noise is mixed into every update, so nothing',
-        'about any single network can be read back out.'],'#E8462A');
-    }
-    if(id==='ret'){
-      pkSet({fill:SIG,hatch:st.secagg?1:0,lock:st.secagg?1:0,specks:st.dp?1:0,blur:st.dp});
-      callout(480,200,['Step '+n.ret+T+' · Send back only the update',
-        'Only what the model learned travels back —',
-        'never any traffic data.'],SIG);
-      if(st.fedbn) callout(160,180,['FedBN — Federated Batch Normalisation',
-        'the BN layers that track this network’s own',
-        'traffic scale stay home — so the shared',
-        'model isn’t warped by any one network'],VIO);
-    }
-    if(id==='avg'){
-      pk.forEach(function(p){ p.g.setAttribute('opacity',0); });
-      formula.textContent='new model = (A + B + C + D) ÷ 4';
-      var lines=['Step '+n.avg+T+' · FedAvg — Federated Averaging',
-        'The coordinator averages the four updates into',
-        'the next shared model, and the round repeats.'];
-      if(st.secagg) lines.push('The masks cancel in the sum (+m − m = 0), so it',
-        'only ever sees the total — never one update.');
-      callout(480,146,lines,VIO);
-    }
-  }
-
-  var t0=null, raf=null, curIdx=-1;
-  function frame(now){
-    if(!t0){ t0=now; PH=phases(); curIdx=-1; }
-    var el=now-t0, idx=0, acc=0;
-    while(idx<PH.length-1 && el>=acc+PH[idx].d){ acc+=PH[idx].d; idx++; }
-    if(el>=acc+PH[idx].d){
-      st.round=st.round%50+1; roundEl.textContent='Round '+st.round+' of 50';
-      t0=now; PH=phases(); el=0; idx=0; acc=0; curIdx=-1;
-    }
-    var ph=PH[idx], t=(el-acc)/ph.d;
-    if(idx!==curIdx){ curIdx=idx; enterPhase(ph.id); }
-    if(ph.id==='send'){ pk.forEach(function(p,i){ p.g.setAttribute('opacity',1); place(i,Math.min(1,t*1.04),false); }); }
-    if(ph.id==='train'){
-      CL.forEach(function(c,i){
-        c.prog.setAttribute('width',44*Math.min(1,t*1.1+i*.02));
-        c.hl.setAttribute('opacity',.9);
-        c.hl.setAttribute('y',327+(Math.floor(t*10)%5)*14);
-      });
-    }
-    if(ph.id==='keys'){
-      keyArcs.forEach(function(a){
-        var p1=a.path.getPointAtLength(a.len*t), p2=a.path.getPointAtLength(a.len*(1-t));
-        a.k1.setAttribute('transform','translate('+p1.x+','+p1.y+')');
-        a.k2.setAttribute('transform','translate('+p2.x+','+p2.y+')');
-      });
-    }
-    if(ph.id==='mask'){
-      pk.forEach(function(p){ p.hatch.setAttribute('opacity',Math.min(1,t*1.5)); p.lock.setAttribute('opacity',t>.55?1:0); });
-    }
-    if(ph.id==='noise'){
-      pk.forEach(function(p){ p.speck.setAttribute('opacity',.35+.65*Math.abs(Math.sin(t*9))); if(t>.15)p.core.setAttribute('filter','url(#fuzz)'); });
-    }
-    if(ph.id==='ret'){
-      pk.forEach(function(p,i){ p.g.setAttribute('opacity',1); place(i,Math.min(1,t*1.04),true); });
-      CL.forEach(function(c){ c.prog.setAttribute('width',0); });
-    }
-    if(ph.id==='avg'){
-      srvPulse.setAttribute('opacity',.5+.5*Math.sin(t*6.28));
-      srvPulse.setAttribute('r',54+9*t);
-    }
-    if(st.playing) raf=requestAnimationFrame(frame);
-  }
-  var play=document.getElementById('fr-play');
-  function setPlaying(v){
-    st.playing=v; play.textContent=v?'❚❚ Pause':'▶ Play'; play.setAttribute('aria-pressed',v);
-    if(v){ t0=null; raf=requestAnimationFrame(frame); }
-    else if(raf) cancelAnimationFrame(raf);
-  }
-  play.addEventListener('click',function(){
-    if(REDUCED){ /* step through the phases statically */
-      PH=phases();
-      st.pi=(st.pi+1)%PH.length;
-      var id=PH[st.pi].id;
-      enterPhase(id);
-      pk.forEach(function(p,i){
-        var show=(id==='send'||id==='ret'||id==='mask'||id==='noise');
-        p.g.setAttribute('opacity',show?1:0);
-        if(show) place(i,(id==='send'||id==='ret')?.55:.04,id!=='send');
-      });
-      if(id==='mask') pk.forEach(function(p){ p.hatch.setAttribute('opacity',1); p.lock.setAttribute('opacity',1); });
-      if(id==='noise') pk.forEach(function(p){ p.speck.setAttribute('opacity',1); });
-      if(id==='keys') keyArcs.forEach(function(a){
-        var m=a.path.getPointAtLength(a.len*.5);
-        a.k1.setAttribute('transform','translate('+(m.x-8)+','+m.y+')');
-        a.k2.setAttribute('transform','translate('+(m.x+8)+','+m.y+')');
-      });
-      if(id==='train') CL.forEach(function(c){ c.prog.setAttribute('width',26); c.hl.setAttribute('opacity',.9); });
-      if(id==='avg'){ srvPulse.setAttribute('opacity',.6); st.round=st.round%50+1; roundEl.textContent='Round '+st.round+' of 50'; }
-      return;
-    }
-    setPlaying(!st.playing);
-  });
-  [['tg-fedbn','fedbn'],['tg-secagg','secagg'],['tg-dp','dp']].forEach(function(cfg){
-    var b=document.getElementById(cfg[0]);
-    b.addEventListener('click',function(){
-      st[cfg[1]]=!st[cfg[1]];
-      b.classList.toggle('on',st[cfg[1]]); b.setAttribute('aria-pressed',st[cfg[1]]);
-      bnPaint();
-      t0=null; st.pi=-1; /* restart the round so the new option plays from the top */
-    });
-  });
-  /* autoplay when scrolled into view; pause offscreen */
-  if(!REDUCED && io){
-    var fio=new IntersectionObserver(function(en){
-      if(en[0].isIntersecting && !st.playing) setPlaying(true);
-      else if(!en[0].isIntersecting && st.playing) setPlaying(false);
-    },{threshold:.35});
-    fio.observe(document.getElementById('fedround'));
-  }
-})();
-})();
-</script>
-
-<script>
-/* ---- Hero NetFlow graph: nodes = IPs, edges = flows, occasional anomaly flare ---- */
-(function(){
-  var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var canvas = document.getElementById('flowcanvas');
-  if(!canvas) return;
-  var ctx = canvas.getContext('2d');
-  var W,H,DPR,nodes=[],edges=[],pulses=[];
-  var SIGNAL='63,211,238', ANOM='255,107,74', VIOLET='150,135,255';
-
-  function rand(a,b){return a+Math.random()*(b-a);}
-
-  function build(){
-    DPR = Math.min(window.devicePixelRatio||1, 2);
-    W = canvas.clientWidth; H = canvas.clientHeight;
-    canvas.width = W*DPR; canvas.height = H*DPR;
-    ctx.setTransform(DPR,0,0,DPR,0,0);
-    nodes=[]; edges=[]; pulses=[];
-    var count = Math.max(14, Math.min(30, Math.floor(W*H/42000)));
-    for(var i=0;i<count;i++){
-      nodes.push({
-        x:rand(0.04,0.97)*W, y:rand(0.05,0.95)*H,
-        r:rand(1.6,3.4),
-        vx:rand(-.06,.06), vy:rand(-.06,.06),
-        hub: Math.random()<0.22
-      });
-    }
-    // connect: each node to a couple of nearest others
-    for(var i=0;i<nodes.length;i++){
-      var d=[];
-      for(var j=0;j<nodes.length;j++) if(i!==j){
-        var dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y;
-        d.push({j:j, dist:dx*dx+dy*dy});
-      }
-      d.sort(function(a,b){return a.dist-b.dist;});
-      var k = nodes[i].hub?4:2;
-      for(var m=0;m<k && m<d.length;m++){
-        var jj=d[m].j;
-        if(!edges.some(function(e){return (e.a===jj&&e.b===i)||(e.a===i&&e.b===jj);}))
-          edges.push({a:i,b:jj});
-      }
-    }
-  }
-
-  function spawnPulse(){
-    if(!edges.length) return;
-    var e = edges[Math.floor(Math.random()*edges.length)];
-    var anom = Math.random()<0.16;
-    pulses.push({e:e, t:0, speed:rand(0.006,0.013), anom:anom, dir:Math.random()<.5?1:-1});
-  }
-
-  var lastSpawn=0;
-  function frame(now){
-    ctx.clearRect(0,0,W,H);
-    // drift nodes
-    for(var i=0;i<nodes.length;i++){
-      var n=nodes[i];
-      n.x+=n.vx; n.y+=n.vy;
-      if(n.x<8||n.x>W-8) n.vx*=-1;
-      if(n.y<8||n.y>H-8) n.vy*=-1;
-    }
-    // edges
-    ctx.lineWidth=1;
-    for(var i=0;i<edges.length;i++){
-      var a=nodes[edges[i].a], b=nodes[edges[i].b];
-      ctx.strokeStyle='rgba('+SIGNAL+',0.10)';
-      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-    }
-    // nodes
-    for(var i=0;i<nodes.length;i++){
-      var n=nodes[i];
-      ctx.beginPath();
-      ctx.fillStyle = n.hub? 'rgba('+VIOLET+',0.9)' : 'rgba('+SIGNAL+',0.75)';
-      ctx.arc(n.x,n.y,n.r,0,6.2832); ctx.fill();
-      if(n.hub){ ctx.beginPath(); ctx.strokeStyle='rgba('+VIOLET+',0.25)'; ctx.lineWidth=1;
-        ctx.arc(n.x,n.y,n.r+4,0,6.2832); ctx.stroke(); }
-    }
-    // spawn
-    if(now-lastSpawn > 240){ spawnPulse(); lastSpawn=now; }
-    // pulses (flows travelling along an edge)
-    for(var i=pulses.length-1;i>=0;i--){
-      var p=pulses[i]; p.t+=p.speed;
-      if(p.t>=1){ pulses.splice(i,1); continue; }
-      var a=nodes[p.e.a], b=nodes[p.e.b];
-      var t = p.dir>0? p.t : 1-p.t;
-      var x=a.x+(b.x-a.x)*t, y=a.y+(b.y-a.y)*t;
-      var col = p.anom?ANOM:SIGNAL;
-      // trailing glow along segment
-      var grad=ctx.createLinearGradient(a.x,a.y,b.x,b.y);
-      grad.addColorStop(Math.max(0,t-0.12),'rgba('+col+',0)');
-      grad.addColorStop(t,'rgba('+col+','+(p.anom?0.55:0.4)+')');
-      grad.addColorStop(Math.min(1,t+0.01),'rgba('+col+',0)');
-      ctx.strokeStyle=grad; ctx.lineWidth=p.anom?2.2:1.4;
-      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-      // moving head
-      ctx.beginPath(); ctx.fillStyle='rgba('+col+',0.95)';
-      ctx.arc(x,y,p.anom?3.2:2,0,6.2832); ctx.fill();
-      if(p.anom){
-        ctx.beginPath(); ctx.strokeStyle='rgba('+ANOM+','+(0.5*(1-p.t))+')'; ctx.lineWidth=1.5;
-        ctx.arc(x,y,3.2+10*p.t,0,6.2832); ctx.stroke();
-      }
-    }
-    raf=requestAnimationFrame(frame);
-  }
-
-  var raf;
-  function start(){ cancelAnimationFrame(raf); build();
-    if(prefersReduced){ // draw one static frame
-      ctx.clearRect(0,0,W,H);
-      for(var i=0;i<edges.length;i++){var a=nodes[edges[i].a],b=nodes[edges[i].b];
-        ctx.strokeStyle='rgba('+SIGNAL+',0.10)';ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
-      for(var i=0;i<nodes.length;i++){var n=nodes[i];ctx.beginPath();
-        ctx.fillStyle=n.hub?'rgba('+VIOLET+',0.9)':'rgba('+SIGNAL+',0.75)';ctx.arc(n.x,n.y,n.r,0,6.2832);ctx.fill();}
-      return;
-    }
-    raf=requestAnimationFrame(frame);
-  }
-  var rt;
-  window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(start,180);});
-  start();
-})();
-</script>
-
-<script>
-/* ---- Problem → Solution flow map: animated connectors + hover tracing ---- */
-(function(){
-  var map=document.getElementById('probmap'); if(!map) return;
-  var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var SVGNS='http://www.w3.org/2000/svg';
-  var svg=map.querySelector('.ob-links');
-  var obs=[].slice.call(map.querySelectorAll('.ob'));
-  var fixes={fixA:document.getElementById('fixA'),fixB:document.getElementById('fixB')};
-  var COL={fixA:'#1BA5C4',fixB:'#7C6BFF'};
-  var links=[], revealed=false, running=false, raf=null;
-
-  function build(){
-    while(svg.firstChild) svg.removeChild(svg.firstChild);
-    links=[];
-    if(getComputedStyle(svg).display==='none') return;
-    var mb=map.getBoundingClientRect();
-    svg.setAttribute('viewBox','0 0 '+mb.width+' '+mb.height);
-    var counts={fixA:0,fixB:0}, idx={fixA:0,fixB:0};
-    obs.forEach(function(o){ counts[o.dataset.to]++; });
-    obs.forEach(function(o){
-      var to=o.dataset.to, f=fixes[to];
-      var ob=o.getBoundingClientRect(), fb=f.getBoundingClientRect();
-      var x0=ob.left+ob.width/2-mb.left, y0=ob.bottom-mb.top+4;
-      var i=idx[to]++, n=counts[to];
-      var x1=fb.left-mb.left+fb.width*((i+1)/(n+1)), y1=fb.top-mb.top-3;
-      var p=document.createElementNS(SVGNS,'path');
-      p.setAttribute('d','M'+x0+' '+y0+' C '+x0+' '+(y0+58)+', '+x1+' '+(y1-58)+', '+x1+' '+y1);
-      p.setAttribute('fill','none'); p.setAttribute('stroke',COL[to]);
-      p.setAttribute('stroke-width','1.8'); p.setAttribute('stroke-linecap','round');
-      p.setAttribute('opacity','.4');
-      svg.appendChild(p);
-      var dot=document.createElementNS(SVGNS,'circle');
-      dot.setAttribute('r','3'); dot.setAttribute('fill',COL[to]); dot.setAttribute('opacity','0');
-      svg.appendChild(dot);
-      links.push({ob:o,to:to,path:p,dot:dot,len:p.getTotalLength(),t:Math.random()});
-    });
-  }
-  function drawIn(){
-    if(REDUCED) return;
-    links.forEach(function(l,i){
-      l.path.style.transition='none';
-      l.path.style.strokeDasharray=l.len; l.path.style.strokeDashoffset=l.len;
-      void l.path.getBoundingClientRect();
-      l.path.style.transition='stroke-dashoffset .9s ease '+(i*.1)+'s';
-      l.path.style.strokeDashoffset=0;
-    });
-  }
-  function tick(){
-    links.forEach(function(l){
-      l.t+=.0045; if(l.t>1) l.t-=1;
-      var pt=l.path.getPointAtLength(l.t*l.len);
-      l.dot.setAttribute('cx',pt.x); l.dot.setAttribute('cy',pt.y);
-      l.dot.setAttribute('opacity',.85);
-    });
-    if(running) raf=requestAnimationFrame(tick);
-  }
-  function setRunning(v){
-    if(REDUCED||!links.length) return;
-    if(v&&!running){ running=true; raf=requestAnimationFrame(tick); }
-    else if(!v&&running){ running=false; cancelAnimationFrame(raf); }
-  }
-  function clear(){
-    obs.forEach(function(o){ o.classList.remove('hot'); });
-    fixes.fixA.classList.remove('hot'); fixes.fixB.classList.remove('hot');
-    links.forEach(function(l){ l.path.setAttribute('opacity',.4); l.path.setAttribute('stroke-width',1.8); });
-  }
-  function hotTo(to,obOnly){
-    clear(); fixes[to].classList.add('hot');
-    obs.forEach(function(o){ if(o.dataset.to===to&&(!obOnly||o===obOnly)) o.classList.add('hot'); });
-    links.forEach(function(l){
-      var on=l.to===to&&(!obOnly||l.ob===obOnly);
-      l.path.setAttribute('opacity',on?.95:.12);
-      l.path.setAttribute('stroke-width',on?2.6:1.8);
-    });
-  }
-  obs.forEach(function(o){
-    o.addEventListener('mouseenter',function(){ hotTo(o.dataset.to,o); });
-    o.addEventListener('focus',function(){ hotTo(o.dataset.to,o); });
-  });
-  ['fixA','fixB'].forEach(function(id){
-    fixes[id].addEventListener('mouseenter',function(){ hotTo(id); });
-    fixes[id].addEventListener('focus',function(){ hotTo(id); });
-  });
-  map.addEventListener('mouseleave',clear);
-
-  var rt; window.addEventListener('resize',function(){
-    clearTimeout(rt);
-    rt=setTimeout(function(){ if(revealed){ build(); setRunning(true); } },180);
-  });
-  if('IntersectionObserver' in window && !REDUCED){
-    var pio=new IntersectionObserver(function(en){
-      en.forEach(function(e){
-        if(e.isIntersecting){
-          if(!revealed){
-            revealed=true; map.classList.add('in');
-            /* wait for the tiles' entrance transition to settle, then wire them up */
-            setTimeout(function(){ build(); drawIn(); setRunning(true); },620);
-          } else setRunning(true);
-        } else setRunning(false);
-      });
-    },{threshold:.2});
-    pio.observe(map);
-  } else {
-    revealed=true; map.classList.add('in'); build();
-  }
-})();
-</script>
+<script src="script.js" defer></script>
 </body>
 </html>
